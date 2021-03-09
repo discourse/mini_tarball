@@ -65,5 +65,11 @@ RSpec.describe MiniTarball::HeaderWriter do
       subject.write(header)
       expect(io.string).to eq(fixture("headers/long_path_header"))
     end
+
+    it "ignores file type bitfields" do
+      header = MiniTarball::Header.new(name: "small_file", size: 536_870_913, mode: 0100664, **default_options)
+      subject.write(header)
+      expect(io.string).to eq(fixture("headers/small_file_header"))
+    end
   end
 end

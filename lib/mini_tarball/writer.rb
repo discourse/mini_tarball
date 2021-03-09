@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'etc'
+
 module MiniTarball
   class Writer
     END_OF_TAR_BLOCK_SIZE = 1024
@@ -27,7 +29,7 @@ module MiniTarball
     end
 
     def initialize(io)
-      check_io!(io)
+      ensure_valid_io!(io)
 
       @io = io
       @write_only_io = WriteOnlyStream.new(@io)
@@ -35,8 +37,30 @@ module MiniTarball
       @closed = false
     end
 
-    def add_file(name:, mode: 0644, uname: "nobody", gname: "nogroup", uid: nil, gid: nil, mtime: nil)
-      check_closed!
+    def add_file(name:, source_file_path:, mode: nil, uname: nil, gname: nil, uid: nil, gid: nil, mtime: nil)
+      ensure_not_closed!
+
+      file = File.open(source_file_path, "rb")
+      stat = File.stat(source_file_path)
+
+      @header_writer.write(Header.new(
+        name: name,
+        size: stat.size,
+        mode: mode || stat.mode,
+        uid: uid || stat.uid,
+        gid: gid || stat.gid,
+        uname: uname || Etc.getpwuid(stat.uid).name,
+        gname: gname || Etc.getgrgid(stat.gid).name,
+        mtime: mtime || stat.mtime
+      ))
+
+      IO.copy_stream(file, @write_only_io)
+      write_padding
+      nil
+    end
+
+    def add_file_from_stream(name:, mode: 0644, uname: "nobody", gname: "nogroup", uid: nil, gid: nil, mtime: nil)
+      ensure_not_closed!
 
       header_start_position = @io.pos
       @header_writer.write(Header.new(name: name))
@@ -59,6 +83,7 @@ module MiniTarball
       ))
 
       @io.seek(0, IO::SEEK_END)
+      nil
     end
 
     def closed?
@@ -66,7 +91,7 @@ module MiniTarball
     end
 
     def close
-      check_closed!
+      ensure_not_closed!
 
       @io.write("\0" * END_OF_TAR_BLOCK_SIZE)
       @io.close
@@ -75,15 +100,12 @@ module MiniTarball
 
     private
 
-    def check_io!(io)
+    def ensure_valid_io!(io)
       raise "No IO object given" unless io.respond_to?(:pos) &&
-        io.respond_to?(:seek) && io.respond_to?(:write) && io.respond_to?(:close)
-
-      io.seek(0, IO::SEEK_END)
-      raise "Stream must be empty" unless io.pos == 0
+        io.respond_to?(:write) && io.respond_to?(:close)
     end
 
-    def check_closed!
+    def ensure_not_closed!
       raise IOError.new("#{self.class} is closed") if closed?
     end
 

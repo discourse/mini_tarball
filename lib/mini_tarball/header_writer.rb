@@ -22,6 +22,8 @@ module MiniTarball
         case field[:type]
         when :number
           values_by_field[name] = HeaderFormatter.format_number(value, field[:length])
+        when :mode
+          values_by_field[name] = HeaderFormatter.format_permissions(value, field[:length])
         when :checksum
           values_by_field[name] = " " * field[:length]
         end

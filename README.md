@@ -15,7 +15,6 @@ This is a **minimal** implementation of the [GNU Tar format](https://www.gnu.org
 * Adding hardlinks, symlinks or directories
 * Other features of GNU tar like sparse files
 * Creating POSIX.1-2001 (pax) archives or any other tar format
-* Creating a `tar.gz` file by using `Zlib::GzipWriter` because its stream is not seekable
 
 ## Installation
 
@@ -42,33 +41,48 @@ There are multiple ways for creating a `MiniTarball::Writer`:
    ``` ruby
    io =  File.open(archive_path, "wb")
    MiniTarball::Writer.use(io) do |writer|
-     # add files by calling writer.add_file
+     # add files by calling writer.add_file or writer.add_file_from_stream
    end
    ```
 
 2. Create a new file by supplying a file name.
    ``` ruby
    MiniTarball::Writer.create(filename) do |writer|
-     # add files by calling writer.add_file
+     # add files by calling writer.add_file or writer.add_file_from_stream
    end
    ```
 
 3. Create it manually. You need to close the writer when you are done in order finalize the tar file.
    ``` ruby
    writer = MiniTarball::Writer.new(io)
-   # add files by calling writer.add_file
+   # add files by calling writer.add_file or writer.add_file_from_stream
    writer.close
    ```
 
 ### Adding files
-You can add files by calling `MiniTarball::Writer#add_file`. The required `name` argument can be a file name or a complete path.
+
+You can add existing files as well as write a stream into the tar file.
+
+#### Adding existing files
+You can add existing files by calling `MiniTarball::Writer#add_file`. The required `name` argument can be a file name or a complete path.
+
+``` ruby
+writer.add_file(name: "file1.txt", source_file_path: "/home/foo/file1.txt")
+```
+
+By default the file's attributes are stored in the tar file, but you can override them by supplying values for the optional arguments (`mode`, `uname`, `gname`, `uid`, `gid`, `mtime`) to `MiniTarball::Writer#add_file`.
+
+#### Adding files from a stream
+You can add files of unknown size by calling `MiniTarball::Writer#add_file_from_stream`. The required `name` argument can be a file name or a complete path.
+
+> 💡 This method doesn't work with non-seekable streams like `Zlib::GzipWriter`.
 
 Here are some examples:
 
 * Use IO.copy_stream to efficiently copy a stream into the tar
    ``` ruby
    File.open("/home/foo/file1.txt", "rb") do |input_stream|
-     writer.add_file(name: "file1.txt") do |output_stream|
+     writer.add_file_from_stream(name: "file1.txt") do |output_stream|
        IO.copy_stream(input_stream, output_stream)
      end
    end
@@ -76,12 +90,12 @@ Here are some examples:
 
 * Directly write into the output stream
    ``` ruby
-   writer.add_file(name: "foo/bar/file2.txt") do |output_stream|
+   writer.add_file_from_stream(name: "foo/bar/file2.txt") do |output_stream|
      output_stream.write("Hello world!")
    end
    ```
 
-`MiniTarball::Writer#add_file` has multiple optional arguments:
+`MiniTarball::Writer#add_file_from_stream` has multiple optional arguments:
 
 |Argument|Default|Description|
 |:---|:---|:---|
@@ -102,7 +116,7 @@ To release a new version, update the version number in `version.rb`, and then pu
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/discourse/mini_tarball.
+Pull requests are welcome on GitHub at https://github.com/discourse/mini_tarball.
 
 ## License
 
