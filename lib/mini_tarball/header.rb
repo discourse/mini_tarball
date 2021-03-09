@@ -11,7 +11,7 @@ module MiniTarball
     # rubocop:disable Layout/HashAlignment
     FIELDS = {
       name:     { length: 100, type: :chars },
-      mode:     { length:   8, type: :number },
+      mode:     { length:   8, type: :mode },
       uid:      { length:   8, type: :number },
       gid:      { length:   8, type: :number },
       size:     { length:  12, type: :number },

@@ -4,6 +4,8 @@ module MiniTarball
   ValueTooLargeError = Class.new(StandardError)
 
   class HeaderFormatter
+    PERMISSION_BITMASK = 0007777
+
     # @param value [Integer]
     # @param length [Integer]
     def self.format_number(value, length)
@@ -37,6 +39,13 @@ module MiniTarball
       end
 
       encoded.pack("C#{length}")
+    end
+
+    # Removes file type bitfields and returns file permissions as formatted number
+    # @param value [Integer]
+    # @param length [Integer]
+    def self.format_permissions(value, length)
+      format_number(value & PERMISSION_BITMASK, length)
     end
   end
 end
