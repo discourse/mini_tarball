@@ -39,6 +39,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Release Gem
-        uses: CvX/publish-rubygems-action@master
+        uses: discourse/publish-rubygems-action@v2-beta
         env:
-          RUBYGEMS_API_KEY: ${{secrets.RUBYGEMS_API_KEY}}
+          RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+          GIT_EMAIL: team@discourse.org
+          GIT_NAME: discoursebot
