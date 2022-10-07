@@ -6,28 +6,26 @@ on:
       - main
     tags:
       - v*
-  schedule:
-    - cron: '0 0 15 * *'
 
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
-        ruby:
-          - '2.6'
-          - '2.7'
-          - '3.0'
-          - 'head'
-    runs-on: ubuntu-latest
+        os: ['ubuntu-latest', 'macos-latest']
+        ruby: ['2.7', '3.0', '3.1', 'truffleruby']
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
+      - name: Setup MacOS
+        run: brew install gnu-tar
+        if: runner.os == 'macOS'
       - name: Run RSpec and Rubocop
         run: bundle exec rake
 
@@ -37,9 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Release Gem
-        uses: discourse/publish-rubygems-action@v2-beta
+        uses: discourse/publish-rubygems-action@v2
         env:
           RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
           GIT_EMAIL: team@discourse.org
