@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require 'tempfile'
 
 def create_tar(output_filename:, filenames:, uname: "discourse", uid: 1001, gname: "www-data",
                gid: 33, mtime: "2021-02-15T20:11:34Z", blocking_factor: nil, announce: false)
@@ -12,7 +13,8 @@ def create_tar(output_filename:, filenames:, uname: "discourse", uid: 1001, gnam
   options = +"--format=gnu --owner=#{uname}:#{uid} --group=#{gname}:#{gid} --mtime='#{mtime}' --mode=0644"
   options << " --blocking-factor=#{blocking_factor}" if blocking_factor
 
-  `tar #{options} -cf #{output_filename} #{filenames}`
+  tar_binary = /darwin/ =~ RUBY_PLATFORM ? "gtar" : "tar"
+  `#{tar_binary} #{options} -cf #{output_filename} #{filenames}`
 
   puts "done" if announce
 end
@@ -47,7 +49,7 @@ def create_file(filename:, content: nil, filesize: nil, path: nil)
   if filesize
     `fallocate -l #{filesize} #{path}`
   elsif content
-    File.open(path, "w") { |f| f.puts content }
+    File.open(path, "w") { |f| f.write content }
   end
 
   path
@@ -67,6 +69,7 @@ def create_content(length:)
     content << chars[index % chars.size] * remainder
   end
 
+  content << "\n"
   content
 end
 
@@ -117,17 +120,33 @@ Dir.chdir(File.expand_path("headers", __dir__)) do
 end
 
 # Files
+archives_path = File.expand_path("archives", __dir__)
 Dir.chdir(File.expand_path("files", __dir__)) do
   print "Creating files..."
   create_file(filename: "file1.txt", content: create_content(length: 1042))
   create_file(filename: "file2.txt", content: create_content(length: 391))
   create_file(filename: "file3.txt", content: create_content(length: 1063))
+  create_file(filename: "file1_with_trailing_zeros.txt", content: create_content(length: 1042) + "\0" * 1492)
   puts "done"
 
   create_tar(
-    output_filename: "../archives/multiple_files.tar",
+    output_filename: File.join(archives_path, "multiple_files.tar"),
     filenames: %w{file1.txt file2.txt file3.txt},
     blocking_factor: 1,
     announce: true
   )
+
+  Dir.mktmpdir do |temp_dir|
+    FileUtils.copy_file("file1_with_trailing_zeros.txt", File.join(temp_dir, "file1.txt"), true)
+    FileUtils.copy_file("file2.txt", File.join(temp_dir, "file2.txt"), true)
+
+    Dir.chdir(temp_dir) do
+      create_tar(
+        output_filename: File.join(archives_path, "small_file_in_large_placeholder.tar"),
+        filenames: %w{file1.txt file2.txt},
+        blocking_factor: 1,
+        announce: true
+      )
+    end
+  end
 end

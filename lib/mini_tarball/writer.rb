@@ -35,6 +35,7 @@ module MiniTarball
       @write_only_io = WriteOnlyStream.new(@io)
       @header_writer = HeaderWriter.new(@write_only_io)
       @closed = false
+      @placeholders = []
     end
 
     def add_file(name:, source_file_path:, mode: nil, uname: nil, gname: nil, uid: nil, gid: nil, mtime: nil)
@@ -83,6 +84,43 @@ module MiniTarball
       ))
 
       @io.seek(0, IO::SEEK_END)
+      nil
+    end
+
+    def add_file_placeholder(name:, file_size:)
+      ensure_not_closed!
+
+      placeholder = {}
+      placeholder[:header_start_position] = @io.pos
+      @header_writer.write(Header.new(name: name, size: file_size))
+
+      placeholder[:file_start_position] = @io.pos
+      @io.write("\0" * file_size)
+      placeholder[:file_size] = file_size
+
+      write_padding
+
+      @placeholders << placeholder
+      @placeholders.size - 1
+    end
+
+    def with_placeholder(index)
+      placeholder = @placeholders[index]
+      raise ArgumentError.new("Placeholder not found") if placeholder.nil?
+
+      @io.seek(placeholder[:header_start_position])
+      old_write_only_io = @write_only_io
+      @write_only_io = PlaceholderStream.new(
+        @io,
+        start_position: placeholder[:file_start_position],
+        file_size: placeholder[:file_size]
+      )
+
+      yield self
+
+      @write_only_io = old_write_only_io
+      @io.seek(0, IO::SEEK_END)
+
       nil
     end
 

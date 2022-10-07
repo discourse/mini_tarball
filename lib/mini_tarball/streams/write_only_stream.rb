@@ -7,7 +7,7 @@ module MiniTarball
     end
 
     def write(data)
-      @io.write (data)
+      @io.write(data)
     end
   end
 end

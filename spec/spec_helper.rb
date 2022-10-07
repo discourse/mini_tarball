@@ -21,5 +21,5 @@ def fixture_path(relative_path)
 end
 
 def fixture(relative_path)
-  IO.binread(fixture_path(relative_path))
+  File.binread(fixture_path(relative_path))
 end

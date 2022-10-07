@@ -14,7 +14,7 @@ RSpec.describe MiniTarball::HeaderFormatter do
       expect { format(-1, 10) }.to raise_error(NotImplementedError)
     end
 
-    context "octal" do
+    context "with octal" do
       it "returns a string with length - 1" do
         expect(format(10, 5).length).to eq(4)
       end
@@ -27,7 +27,7 @@ RSpec.describe MiniTarball::HeaderFormatter do
       end
     end
 
-    context "base-256" do
+    context "with base-256" do
       it "returns a string with the correct length" do
         expect(format(4096, 5).length).to eq(5)
       end
