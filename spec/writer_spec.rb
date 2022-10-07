@@ -26,27 +26,31 @@ RSpec.describe MiniTarball::Writer do
 
   def add_files_from_stream(writer, filenames)
     filenames.each do |filename|
-      writer.add_file_from_stream(name: filename, **default_options) do |output_stream|
-        path = File.join(fixture_path("files"), filename)
+      path = File.join(fixture_path("files"), filename)
+      add_file_from_steam(writer, path, filename)
+    end
+  end
 
-        File.open(path, "rb") do |input_stream|
-          IO.copy_stream(input_stream, output_stream)
-        end
+  def add_file_from_steam(writer, path, filename)
+    writer.add_file_from_stream(name: filename, **default_options) do |output_stream|
+      File.open(path, "rb") do |input_stream|
+        IO.copy_stream(input_stream, output_stream)
       end
     end
   end
 
-  def with_temp_tar(filenames)
+  def with_temp_tar(filenames, fixture_directory: "files")
     Dir.mktmpdir do |temp_dir|
       output_filename = File.join(temp_dir, "test.tar")
       filenames = filenames.join(" ")
       options = "--format=gnu --blocking-factor=1"
+      tar_binary = /darwin/ =~ RUBY_PLATFORM ? "gtar" : "tar"
 
-      Dir.chdir(fixture_path("files")) do
-        `tar #{options} -cf #{output_filename} #{filenames}`
+      Dir.chdir(fixture_path(fixture_directory)) do
+        `#{tar_binary} #{options} -cf #{output_filename} #{filenames}`
       end
 
-      yield(IO.binread(output_filename))
+      yield(File.binread(output_filename))
     end
   end
 
@@ -95,6 +99,91 @@ RSpec.describe MiniTarball::Writer do
       end
 
       expect(io.string).to eq(fixture("archives/multiple_files.tar"))
+    end
+  end
+
+  describe "#with_placeholder" do
+    it "raises an error if the placeholder doesn't exist" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect { writer.with_placeholder(42) }.to raise_error(ArgumentError)
+      end
+    end
+
+    it "adds file at the beginning of tar file" do
+      MiniTarball::Writer.use(io) do |writer|
+        placeholder = writer.add_file_placeholder(name: "file1.txt", file_size: File.size(fixture_path("files/file1.txt")))
+        add_files_from_stream(writer, %w{file2.txt file3.txt})
+
+        writer.with_placeholder(placeholder) do |w|
+          add_files_from_stream(w, %w{file1.txt})
+        end
+      end
+
+      expect(io.string).to eq(fixture("archives/multiple_files.tar"))
+    end
+
+    it "adds file in the middle of tar file" do
+      MiniTarball::Writer.use(io) do |writer|
+        add_files_from_stream(writer, %w{file1.txt})
+        placeholder = writer.add_file_placeholder(name: "file2.txt", file_size: File.size(fixture_path("files/file2.txt")))
+        add_files_from_stream(writer, %w{file3.txt})
+
+        writer.with_placeholder(placeholder) do |w|
+          add_files_from_stream(w, %w{file2.txt})
+        end
+      end
+
+      expect(io.string).to eq(fixture("archives/multiple_files.tar"))
+    end
+
+    it "supports adding multiple files via placeholder" do
+      MiniTarball::Writer.use(io) do |writer|
+        add_files(writer, %w{file1.txt})
+        placeholder2 = writer.add_file_placeholder(name: "file2.txt", file_size: File.size(fixture_path("files/file2.txt")))
+        placeholder3 = writer.add_file_placeholder(name: "file3.txt", file_size: File.size(fixture_path("files/file3.txt")))
+
+        writer.with_placeholder(placeholder2) do |w|
+          add_files(w, %w{file2.txt})
+        end
+
+        writer.with_placeholder(placeholder3) do |w|
+          add_files(w, %w{file3.txt})
+        end
+      end
+
+      with_temp_tar(%w{file1.txt file2.txt file3.txt}) do |tar|
+        expect(io.string).to eq(tar)
+      end
+    end
+
+    it "supports adding a file that is smaller than the placeholder" do
+      MiniTarball::Writer.use(io) do |writer|
+        placeholder = writer.add_file_placeholder(
+          name: "file1.txt",
+          file_size: File.size(fixture_path("files/file1.txt")) + 1492
+        )
+
+        writer.with_placeholder(placeholder) do |w|
+          add_files_from_stream(w, %w{file1.txt})
+        end
+
+        add_files_from_stream(writer, %w{file2.txt})
+      end
+
+      expect(io.string).to eq(fixture("archives/small_file_in_large_placeholder.tar"))
+    end
+
+    it "raises an error if the file is larger than the placeholder" do
+      MiniTarball::Writer.use(io) do |writer|
+        placeholder = writer.add_file_placeholder(
+          name: "file1.txt",
+          file_size: File.size(fixture_path("files/file1.txt")) - 100
+        )
+
+        writer.with_placeholder(placeholder) do |w|
+          expect { add_files_from_stream(w, %w{file1.txt}) }.to raise_error(MiniTarball::WriteOutOfRangeError)
+        end
+      end
     end
   end
 

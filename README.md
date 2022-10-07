@@ -8,7 +8,7 @@ This is a **minimal** implementation of the [GNU Tar format](https://www.gnu.org
   * unlimited file size
   * unlimited file name length
 * Unicode file names
-* Works with streams, so you don't need to waste disk space by creating temporary files
+* Works with streams, so there's no need to waste disk space by creating temporary files
 
 #### 👎 Currently not supported features
 * Reading tar files
@@ -59,11 +59,11 @@ There are multiple ways for creating a `MiniTarball::Writer`:
    writer.close
    ```
 
-### Adding files
+### Add files
 
 You can add existing files as well as write a stream into the tar file.
 
-#### Adding existing files
+#### Add existing files
 You can add existing files by calling `MiniTarball::Writer#add_file`. The required `name` argument can be a file name or a complete path.
 
 ``` ruby
@@ -72,7 +72,7 @@ writer.add_file(name: "file1.txt", source_file_path: "/home/foo/file1.txt")
 
 By default the file's attributes are stored in the tar file, but you can override them by supplying values for the optional arguments (`mode`, `uname`, `gname`, `uid`, `gid`, `mtime`) to `MiniTarball::Writer#add_file`.
 
-#### Adding files from a stream
+#### Add files from a stream
 You can add files of unknown size by calling `MiniTarball::Writer#add_file_from_stream`. The required `name` argument can be a file name or a complete path.
 
 > 💡 This method doesn't work with non-seekable streams like `Zlib::GzipWriter`.
@@ -106,6 +106,31 @@ Here are some examples:
 |gid|`nil`|Group ID of file owner|
 |mtime|`Time.now.utc`|Modification time|
 
+#### Add placeholder
+Placeholders allow you to reserve space for a file within the tar. That's quite useful when you want to store a file at the beginning of the archive, but don't know the file content until you have added other files to the archive.
+
+You don't need to know the exact size of the file when you add the placeholder. The writer will fill unused space with ␀ characters if the actual file is smaller than the reserved `file_size`. Adding a file that is larger than `file_size` will raise `MiniTarball::WriteOutOfRangeError`.
+
+``` ruby
+placeholder1 = writer.add_file_placeholder(name: "file1.txt", file_size: 3925)
+placeholder2 = writer.add_file_placeholder(name: "file2.txt", file_size: 1950)
+# add more files...
+
+# fill placeholder 1
+writer.with_placeholder(placeholder1) do |w|
+  w.add_file(name: "file1.txt", source_file_path: "/home/foo/file1.txt")
+end
+
+# fill placeholder 2
+writer.with_placeholder(placeholder2) do |w|
+  File.open("/home/foo/file9.txt", "rb") do |input_stream|
+    w.add_file_from_stream(name: "file9.txt") do |output_stream|
+      IO.copy_stream(input_stream, output_stream)
+    end
+  end
+end
+```
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
@@ -113,6 +138,8 @@ After checking out the repo, run `bin/setup` to install dependencies. Then, run 
 To install this gem onto your local machine, run `bundle exec rake install`.
 
 To release a new version, update the version number in `version.rb`, and then push it to GitHub. This will automatically create a tag and publish the gem on [rubygems.org](https://rubygems.org).
+
+On MacOS you need to run `brew install gnu-tar`, otherwise some specs will fail.
 
 ## Contributing
 
