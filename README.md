@@ -141,6 +141,14 @@ To release a new version, update the version number in `version.rb`, and then pu
 
 On MacOS you need to run `brew install gnu-tar`, otherwise some specs will fail.
 
+### RubyCritic
+
+You can run `SimpleCov` and `RubyCritic` by executing the following:
+
+```
+COVERAGE=1 rake spec && rubycritic --no-browser
+```
+
 ## Contributing
 
 Pull requests are welcome on GitHub at https://github.com/discourse/mini_tarball.

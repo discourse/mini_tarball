@@ -5,7 +5,7 @@ require_relative "lib/mini_tarball/version"
 Gem::Specification.new do |spec|
   spec.name          = "mini_tarball"
   spec.version       = MiniTarball::VERSION
-  spec.authors       = ["Discourse"]
+  spec.authors       = ["Discourse Team"]
 
   spec.summary       = "A minimal implementation of the GNU Tar format."
   spec.homepage      = "https://github.com/discourse/mini_tarball"
@@ -22,6 +22,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rspec"
   spec.add_development_dependency "rubocop-discourse"
   spec.add_development_dependency "rubocop-rake"
-  spec.add_development_dependency "super_diff"
+  spec.add_development_dependency "rubycritic"
   spec.add_development_dependency "simplecov"
+  spec.add_development_dependency "super_diff"
 end
