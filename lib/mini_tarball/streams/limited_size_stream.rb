@@ -5,6 +5,7 @@ module MiniTarball
 
   class LimitedSizeStream
     attr_reader :start_position, :end_position
+    attr_reader :io; private :io  # TODO change to `private attr_reader :io` after dropping support for Ruby 2.7
 
     def initialize(io, start_position:, max_file_size:)
       @io = io
@@ -13,11 +14,13 @@ module MiniTarball
     end
 
     def write(data)
-      if @io.pos < start_position || @io.pos + data.bytesize > end_position
+      current_position = io.pos
+
+      if current_position < start_position || current_position + data.bytesize > end_position
         raise WriteOutOfRangeError.new("Writing outside of limits not allowed")
       end
 
-      @io.write(data)
+      io.write(data)
     end
   end
 end

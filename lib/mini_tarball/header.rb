@@ -29,6 +29,20 @@ module MiniTarball
     }
     # rubocop:enable Layout/HashAlignment
 
+    def self.long_link_header(name)
+      Header.new(
+        name: "././@LongLink",
+        mode: 0644,
+        uid: 0,
+        gid: 0,
+        size: name.bytesize + 1,
+        typeflag: TYPE_LONG_LINK,
+        uname: "root",
+        gname: "root"
+      )
+    end
+
+    # :reek:LongParameterList
     def initialize(name:, mode: 0, uid: nil, gid: nil, size: 0, mtime: 0, typeflag: TYPE_REGULAR, linkname: "", uname: nil, gname: nil)
       @values = {
         name: name,
@@ -52,6 +66,15 @@ module MiniTarball
 
     def value_of(key)
       @values[key]
+    end
+
+    def to_binary
+      fields = HeaderFields.new(self)
+      fields.to_binary
+    end
+
+    def has_long_name?
+      value_of(:name).bytesize > FIELDS[:name][:length]
     end
   end
 end
