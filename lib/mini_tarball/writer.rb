@@ -8,6 +8,8 @@ module MiniTarball
 
     # @param [String] filename
     # @yieldparam [Writer]
+    #
+    # :reek:NestedIterators
     def self.create(filename)
       File.open(filename, "wb") do |file|
         use(file) { |writer| yield(writer) }
@@ -29,7 +31,7 @@ module MiniTarball
     end
 
     def initialize(io)
-      ensure_valid_io!(io)
+      ensure_valid_io(io)
 
       @io = io
       @write_only_io = WriteOnlyStream.new(@io)
@@ -38,10 +40,14 @@ module MiniTarball
       @placeholders = []
     end
 
+    # :reek:ControlParameter
+    # :reek:DuplicateMethodCall { allow_calls: ['stat.uid', 'stat.gid'] }
+    # :reek:FeatureEnvy
+    # :reek:LongParameterList
+    # :reek:TooManyStatements
     def add_file(name:, source_file_path:, mode: nil, uname: nil, gname: nil, uid: nil, gid: nil, mtime: nil)
-      ensure_not_closed!
+      ensure_not_closed
 
-      file = File.open(source_file_path, "rb")
       stat = File.stat(source_file_path)
 
       @header_writer.write(Header.new(
@@ -55,13 +61,20 @@ module MiniTarball
         mtime: mtime || stat.mtime
       ))
 
-      IO.copy_stream(file, @write_only_io)
+      File.open(source_file_path, "rb") do |file|
+        IO.copy_stream(file, @write_only_io)
+      end
+
       write_padding
       nil
     end
 
+    # :reek:ControlParameter
+    # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
+    # :reek:LongParameterList
+    # :reek:TooManyStatements
     def add_file_from_stream(name:, mode: 0644, uname: "nobody", gname: "nogroup", uid: nil, gid: nil, mtime: nil)
-      ensure_not_closed!
+      ensure_not_closed
 
       header_start_position = @io.pos
       @header_writer.write(Header.new(name: name))
@@ -87,8 +100,10 @@ module MiniTarball
       nil
     end
 
+    # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
+    # :reek:TooManyStatements
     def add_file_placeholder(name:, file_size:)
-      ensure_not_closed!
+      ensure_not_closed
 
       placeholder = {}
       placeholder[:header_start_position] = @io.pos
@@ -104,9 +119,10 @@ module MiniTarball
       @placeholders.size - 1
     end
 
+    # :reek:TooManyStatements
     def with_placeholder(index)
       placeholder = @placeholders[index]
-      raise ArgumentError.new("Placeholder not found") if placeholder.nil?
+      raise ArgumentError.new("Placeholder not found") if !placeholder
 
       @io.seek(placeholder[:header_start_position])
       old_write_only_io = @write_only_io
@@ -129,25 +145,25 @@ module MiniTarball
     end
 
     def close
-      ensure_not_closed!
+      ensure_not_closed
 
       @io.write("\0" * END_OF_TAR_BLOCK_SIZE)
       @io.close
       @closed = true
     end
 
-    private
-
-    def ensure_valid_io!(io)
+    # :reek:FeatureEnvy
+    # :reek:ManualDispatch
+    private def ensure_valid_io(io)
       raise "No IO object given" unless io.respond_to?(:pos) &&
         io.respond_to?(:write) && io.respond_to?(:close)
     end
 
-    def ensure_not_closed!
+    private def ensure_not_closed
       raise IOError.new("#{self.class} is closed") if closed?
     end
 
-    def write_padding
+    private def write_padding
       padding_length = (Header::BLOCK_SIZE - @io.pos) % Header::BLOCK_SIZE
       @io.write("\0" * padding_length)
     end

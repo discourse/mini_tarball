@@ -3,30 +3,58 @@
 module MiniTarball
   ValueTooLargeError = Class.new(StandardError)
 
-  class HeaderFormatter
+  module HeaderFormatter
     PERMISSION_BITMASK = 0007777
 
     # @param value [Integer]
     # @param length [Integer]
     def self.format_number(value, length)
-      return nil if value.nil?
+      return nil if !value
       raise NotImplementedError.new("Negative numbers are not supported") if value.negative?
 
-      octal_length = length - 1
-      max_octal_value = ("0" + "7" * octal_length).to_i(8)
-
-      if (value <= max_octal_value)
-        to_octal(value, octal_length)
+      if fits_into_octal?(value, length)
+        to_octal(value, length)
       else
         to_base256(value, length)
       end
     end
 
-    def self.to_octal(value, length)
-      "%0#{length}o" % value
+    # Removes file type bitfields and returns file permissions as formatted number
+    # @param value [Integer]
+    # @param length [Integer]
+    def self.format_permissions(value, length)
+      format_number(value & PERMISSION_BITMASK, length)
     end
 
-    def self.to_base256(value, length)
+    def self.format_checksum(checksum)
+      length = Header::FIELDS[:checksum][:length]
+
+      if checksum
+        format_number(checksum, length - 1) << "\0 "
+      else
+        " " * length
+      end
+    end
+
+    def self.zero_pad(binary)
+      padding_length = (Header::BLOCK_SIZE - binary.length) % Header::BLOCK_SIZE
+      binary << "\0" * padding_length
+    end
+
+    private_class_method def self.fits_into_octal?(value, length)
+      octal_length = length - 1
+      max_octal_value = ("0" + "7" * octal_length).to_i(8)
+      value <= max_octal_value
+    end
+
+    private_class_method def self.to_octal(value, length)
+      octal_length = length - 1
+      "%0#{octal_length}o" % value
+    end
+
+    # :reek:TooManyStatements { max_statements: 8}
+    # :reek:UncommunicativeMethodName
+    private_class_method def self.to_base256(value, length)
       encoded = Array.new(length, 0)
       encoded[0] = 0x80
       index = length - 1
@@ -39,13 +67,6 @@ module MiniTarball
       end
 
       encoded.pack("C#{length}")
-    end
-
-    # Removes file type bitfields and returns file permissions as formatted number
-    # @param value [Integer]
-    # @param length [Integer]
-    def self.format_permissions(value, length)
-      format_number(value & PERMISSION_BITMASK, length)
     end
   end
 end

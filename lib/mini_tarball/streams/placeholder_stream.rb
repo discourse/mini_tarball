@@ -8,7 +8,10 @@ module MiniTarball
 
     def write(data)
       super(data)
-      @io.write("\0" * (end_position - @io.pos)) if @io.pos <= end_position
+
+      if (current_position = io.pos) <= end_position
+        io.write("\0" * (end_position - current_position))
+      end
     end
   end
 end
