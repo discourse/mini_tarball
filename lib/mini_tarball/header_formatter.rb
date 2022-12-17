@@ -12,11 +12,7 @@ module MiniTarball
       return nil if !value
       raise NotImplementedError.new("Negative numbers are not supported") if value.negative?
 
-      if fits_into_octal?(value, length)
-        to_octal(value, length)
-      else
-        to_base256(value, length)
-      end
+      fits_into_octal?(value, length) ? to_octal(value, length) : to_base256(value, length)
     end
 
     # Removes file type bitfields and returns file permissions as formatted number
@@ -29,11 +25,7 @@ module MiniTarball
     def self.format_checksum(checksum)
       length = Header::FIELDS[:checksum][:length]
 
-      if checksum
-        format_number(checksum, length - 1) << "\0 "
-      else
-        " " * length
-      end
+      checksum ? format_number(checksum, length - 1) << "\0 " : " " * length
     end
 
     def self.zero_pad(binary)

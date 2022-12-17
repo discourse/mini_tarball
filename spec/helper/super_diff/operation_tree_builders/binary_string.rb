@@ -21,16 +21,19 @@ module SuperDiff
       end
 
       def pretty_hex(binary)
-        binary.unpack("C*").each_slice(16).each_with_index.map do |group, index|
-          index = "%08x" % (index * 16)
-          text = group.map { |c| to_char(c) }.join("")
-          hex = group
-            .map { |c| "%02x" % c }
-            .each_slice(2).map { |octets| octets.join("") }
-            .join(" ")
+        binary
+          .unpack("C*")
+          .each_slice(16)
+          .each_with_index
+          .map do |group, index|
+            index = "%08x" % (index * 16)
+            text = group.map { |c| to_char(c) }.join("")
+            hex =
+              group.map { |c| "%02x" % c }.each_slice(2).map { |octets| octets.join("") }.join(" ")
 
-          "#{index}: #{hex}  #{text}"
-        end.join("\n")
+            "#{index}: #{hex}  #{text}"
+          end
+          .join("\n")
       end
 
       def to_char(c)

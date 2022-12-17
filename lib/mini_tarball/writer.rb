@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'etc'
+require "etc"
 
 module MiniTarball
   class Writer
@@ -11,9 +11,7 @@ module MiniTarball
     #
     # :reek:NestedIterators
     def self.create(filename)
-      File.open(filename, "wb") do |file|
-        use(file) { |writer| yield(writer) }
-      end
+      File.open(filename, "wb") { |file| use(file) { |writer| yield(writer) } }
     end
 
     # @param [IO] io
@@ -45,25 +43,34 @@ module MiniTarball
     # :reek:FeatureEnvy
     # :reek:LongParameterList
     # :reek:TooManyStatements
-    def add_file(name:, source_file_path:, mode: nil, uname: nil, gname: nil, uid: nil, gid: nil, mtime: nil)
+    def add_file(
+      name:,
+      source_file_path:,
+      mode: nil,
+      uname: nil,
+      gname: nil,
+      uid: nil,
+      gid: nil,
+      mtime: nil
+    )
       ensure_not_closed
 
       stat = File.stat(source_file_path)
 
-      @header_writer.write(Header.new(
-        name: name,
-        size: stat.size,
-        mode: mode || stat.mode,
-        uid: uid || stat.uid,
-        gid: gid || stat.gid,
-        uname: uname || Etc.getpwuid(stat.uid).name,
-        gname: gname || Etc.getgrgid(stat.gid).name,
-        mtime: mtime || stat.mtime
-      ))
+      @header_writer.write(
+        Header.new(
+          name: name,
+          size: stat.size,
+          mode: mode || stat.mode,
+          uid: uid || stat.uid,
+          gid: gid || stat.gid,
+          uname: uname || Etc.getpwuid(stat.uid).name,
+          gname: gname || Etc.getgrgid(stat.gid).name,
+          mtime: mtime || stat.mtime,
+        ),
+      )
 
-      File.open(source_file_path, "rb") do |file|
-        IO.copy_stream(file, @write_only_io)
-      end
+      File.open(source_file_path, "rb") { |file| IO.copy_stream(file, @write_only_io) }
 
       write_padding
       nil
@@ -73,7 +80,15 @@ module MiniTarball
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
     # :reek:LongParameterList
     # :reek:TooManyStatements
-    def add_file_from_stream(name:, mode: 0644, uname: "nobody", gname: "nogroup", uid: nil, gid: nil, mtime: nil)
+    def add_file_from_stream(
+      name:,
+      mode: 0644,
+      uname: "nobody",
+      gname: "nogroup",
+      uid: nil,
+      gid: nil,
+      mtime: nil
+    )
       ensure_not_closed
 
       header_start_position = @io.pos
@@ -85,16 +100,18 @@ module MiniTarball
       write_padding
 
       @io.seek(header_start_position)
-      @header_writer.write(Header.new(
-        name: name,
-        size: file_size,
-        mode: mode,
-        uid: uid,
-        gid: gid,
-        uname: uname,
-        gname: gname,
-        mtime: mtime || Time.now.utc
-      ))
+      @header_writer.write(
+        Header.new(
+          name: name,
+          size: file_size,
+          mode: mode,
+          uid: uid,
+          gid: gid,
+          uname: uname,
+          gname: gname,
+          mtime: mtime || Time.now.utc,
+        ),
+      )
 
       @io.seek(0, IO::SEEK_END)
       nil
@@ -126,11 +143,12 @@ module MiniTarball
 
       @io.seek(placeholder[:header_start_position])
       old_write_only_io = @write_only_io
-      @write_only_io = PlaceholderStream.new(
-        @io,
-        start_position: placeholder[:file_start_position],
-        file_size: placeholder[:file_size]
-      )
+      @write_only_io =
+        PlaceholderStream.new(
+          @io,
+          start_position: placeholder[:file_start_position],
+          file_size: placeholder[:file_size],
+        )
 
       yield self
 
@@ -155,8 +173,9 @@ module MiniTarball
     # :reek:FeatureEnvy
     # :reek:ManualDispatch
     private def ensure_valid_io(io)
-      raise "No IO object given" unless io.respond_to?(:pos) &&
-        io.respond_to?(:write) && io.respond_to?(:close)
+      unless io.respond_to?(:pos) && io.respond_to?(:write) && io.respond_to?(:close)
+        raise "No IO object given"
+      end
     end
 
     private def ensure_not_closed

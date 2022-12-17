@@ -8,7 +8,7 @@ module MiniTarball
     TYPE_REGULAR = "0"
     TYPE_LONG_LINK = "L"
 
-    # rubocop:disable Layout/HashAlignment
+    # stree-ignore
     FIELDS = {
       name:     { length: 100, type: :chars },
       mode:     { length:   8, type: :mode },
@@ -27,7 +27,6 @@ module MiniTarball
       devminor: { length:   8, type: :number },
       prefix:   { length: 155, type: :chars }
     }
-    # rubocop:enable Layout/HashAlignment
 
     def self.long_link_header(name)
       Header.new(
@@ -38,12 +37,23 @@ module MiniTarball
         size: name.bytesize + 1,
         typeflag: TYPE_LONG_LINK,
         uname: "root",
-        gname: "root"
+        gname: "root",
       )
     end
 
     # :reek:LongParameterList
-    def initialize(name:, mode: 0, uid: nil, gid: nil, size: 0, mtime: 0, typeflag: TYPE_REGULAR, linkname: "", uname: nil, gname: nil)
+    def initialize(
+      name:,
+      mode: 0,
+      uid: nil,
+      gid: nil,
+      size: 0,
+      mtime: 0,
+      typeflag: TYPE_REGULAR,
+      linkname: "",
+      uname: nil,
+      gname: nil
+    )
       @values = {
         name: name,
         mode: mode,
@@ -60,7 +70,7 @@ module MiniTarball
         gname: gname,
         devmajor: nil,
         devminor: nil,
-        prefix: ""
+        prefix: "",
       }
     end
 
