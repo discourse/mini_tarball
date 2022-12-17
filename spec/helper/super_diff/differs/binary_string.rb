@@ -4,8 +4,7 @@ module SuperDiff
   module Differs
     class BinaryString < Base
       def self.applies_to?(expected, actual)
-        expected.is_a?(::String) && actual.is_a?(::String) &&
-          (binary?(expected) || binary?(actual))
+        expected.is_a?(::String) && actual.is_a?(::String) && (binary?(expected) || binary?(actual))
       end
 
       def self.binary?(string)

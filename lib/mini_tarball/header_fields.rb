@@ -3,10 +3,7 @@
 module MiniTarball
   class HeaderFields
     def self.pack_format
-      @pack_format ||= Header::FIELDS
-        .values
-        .map { |field| "a#{field[:length]}" }
-        .join("")
+      @pack_format ||= Header::FIELDS.values.map { |field| "a#{field[:length]}" }.join("")
     end
 
     def initialize(header)
