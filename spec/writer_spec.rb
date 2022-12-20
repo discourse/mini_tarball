@@ -2,6 +2,7 @@
 
 require "tempfile"
 require "time"
+require "zlib"
 
 RSpec.describe MiniTarball::Writer do
   let(:io) { StringIO.new.binmode }
@@ -82,6 +83,16 @@ RSpec.describe MiniTarball::Writer do
 
       with_temp_tar(filenames) { |tar| expect(io.string).to eq(tar) }
     end
+
+    it "works with a non-seekable IO object" do
+      filenames = %w[file1.txt file2.txt file3.txt]
+      gzip = Zlib::GzipWriter.new(io)
+
+      MiniTarball::Writer.use(gzip) { |writer| add_files(writer, filenames) }
+
+      data = Zlib::GzipReader.new(StringIO.new(io.string, "rb")).read
+      with_temp_tar(filenames) { |tar| expect(data).to eq(tar) }
+    end
   end
 
   describe "#add_file_from_stream" do
@@ -91,6 +102,16 @@ RSpec.describe MiniTarball::Writer do
       end
 
       expect(io.string).to eq(fixture("archives/multiple_files.tar"))
+    end
+
+    it "raises an error when a non-seekable IO object is used" do
+      gzip = Zlib::GzipWriter.new(io)
+
+      MiniTarball::Writer.use(gzip) do |writer|
+        expect { add_files_from_stream(writer, %w[file1.txt]) }.to raise_error(
+          MiniTarball::NoIOLikeObjectError,
+        )
+      end
     end
   end
 
@@ -185,6 +206,22 @@ RSpec.describe MiniTarball::Writer do
         end
       end
     end
+
+    it "raises an error when a non-seekable IO object is used" do
+      gzip = Zlib::GzipWriter.new(io)
+
+      MiniTarball::Writer.use(gzip) do |writer|
+        placeholder =
+          writer.add_file_placeholder(
+            name: "file1.txt",
+            file_size: File.size(fixture_path("files/file1.txt")),
+          )
+
+        expect { writer.with_placeholder(placeholder) {} }.to raise_error(
+          MiniTarball::NoIOLikeObjectError,
+        )
+      end
+    end
   end
 
   describe "#close" do
@@ -199,5 +236,9 @@ RSpec.describe MiniTarball::Writer do
       expect { add_files_from_stream(writer, %w[file1.txt]) }.to raise_error(IOError)
       expect(io.string).to eq(fixture("archives/multiple_files.tar"))
     end
+  end
+
+  it "raises an error when no valid IO object is used" do
+    expect { MiniTarball::Writer.new(Object.new) }.to raise_error(MiniTarball::NoIOLikeObjectError)
   end
 end

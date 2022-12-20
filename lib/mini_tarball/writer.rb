@@ -3,6 +3,9 @@
 require "etc"
 
 module MiniTarball
+  class NoIOLikeObjectError < StandardError
+  end
+
   class Writer
     END_OF_TAR_BLOCK_SIZE = 1024
 
@@ -90,6 +93,7 @@ module MiniTarball
       mtime: nil
     )
       ensure_not_closed
+      ensure_seekable_io
 
       header_start_position = @io.pos
       @header_writer.write(Header.new(name: name))
@@ -138,6 +142,8 @@ module MiniTarball
 
     # :reek:TooManyStatements
     def with_placeholder(index)
+      ensure_seekable_io
+
       placeholder = @placeholders[index]
       raise ArgumentError.new("Placeholder not found") if !placeholder
 
@@ -174,8 +180,12 @@ module MiniTarball
     # :reek:ManualDispatch
     private def ensure_valid_io(io)
       unless io.respond_to?(:pos) && io.respond_to?(:write) && io.respond_to?(:close)
-        raise "No IO object given"
+        raise NoIOLikeObjectError.new("No IO object given")
       end
+    end
+
+    private def ensure_seekable_io
+      raise NoIOLikeObjectError.new("No seekable IO object given") unless @io.respond_to?(:seek)
     end
 
     private def ensure_not_closed
