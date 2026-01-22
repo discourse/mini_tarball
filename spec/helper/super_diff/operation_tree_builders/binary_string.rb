@@ -40,6 +40,12 @@ module SuperDiff
         (32..126).include?(c) ? c.chr : "."
       end
 
+      protected
+
+      def build_operation_tree
+        OperationTrees::BinaryString.new([])
+      end
+
       # Prevent creation of BinaryOperation objects which the MultilineString
       # flattener cannot handle
       def should_compare?(_operation, _next_operation)
