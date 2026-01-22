@@ -117,12 +117,12 @@ placeholder2 = writer.add_file_placeholder(name: "file2.txt", size: 1950)
 # add more files...
 
 # fill placeholder 1
-writer.with_placeholder(placeholder1) do |w|
+placeholder1.fill do |w|
   w.add_file(name: "file1.txt", source_file_path: "/home/foo/file1.txt")
 end
 
 # fill placeholder 2
-writer.with_placeholder(placeholder2) do |w|
+placeholder2.fill do |w|
   File.open("/home/foo/file9.txt", "rb") do |input_stream|
     w.add_file_from_stream(name: "file9.txt") do |output_stream|
       IO.copy_stream(input_stream, output_stream)

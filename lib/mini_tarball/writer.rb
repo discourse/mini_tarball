@@ -44,7 +44,6 @@ module MiniTarball
       @write_only_io = WriteOnlyStream.new(@io)
       @header_writer = HeaderWriter.new(@write_only_io)
       @closed = false
-      @placeholders = []
     end
 
     # :reek:ControlParameter
@@ -130,47 +129,37 @@ module MiniTarball
     end
 
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
-    # :reek:TooManyStatements
     def add_file_placeholder(name:, size:)
       ensure_not_closed
       ensure_safe_name(name)
 
-      placeholder = {}
-      placeholder[:header_start_position] = @io.pos
+      header_start_position = @io.pos
       @header_writer.write(Header.new(name:, size:))
 
-      placeholder[:file_start_position] = @io.pos
+      file_start_position = @io.pos
       @io.write("\0" * size)
-      placeholder[:size] = size
 
       write_padding
 
-      @placeholders << placeholder
-      @placeholders.size - 1
+      Placeholder.new(writer: self, header_start_position:, file_start_position:, size:)
     end
 
-    # :reek:TooManyStatements
-    def with_placeholder(index)
+    private def fill_placeholder(placeholder)
       ensure_seekable_io
 
-      placeholder = @placeholders[index]
-      raise ArgumentError.new("Placeholder not found") if !placeholder
-
-      @io.seek(placeholder[:header_start_position])
+      @io.seek(placeholder.header_start_position)
       old_write_only_io = @write_only_io
       @write_only_io =
         PlaceholderStream.new(
           @io,
-          start_position: placeholder[:file_start_position],
-          size: placeholder[:size],
+          start_position: placeholder.file_start_position,
+          size: placeholder.size,
         )
 
       yield self
 
       @write_only_io = old_write_only_io
       @io.seek(0, IO::SEEK_END)
-
-      self
     end
 
     def closed?
