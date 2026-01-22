@@ -2,7 +2,7 @@
 
 module SuperDiff
   module OperationTreeBuilders
-    class BinaryString < MultilineString
+    class BinaryString < Basic::OperationTreeBuilders::MultilineString
       def self.applies_to?(expected, actual)
         SuperDiff::Differs::BinaryString.applies_to?(expected, actual)
       end
@@ -38,6 +38,12 @@ module SuperDiff
 
       def to_char(c)
         (32..126).include?(c) ? c.chr : "."
+      end
+
+      # Prevent creation of BinaryOperation objects which the MultilineString
+      # flattener cannot handle
+      def should_compare?(_operation, _next_operation)
+        false
       end
     end
   end
