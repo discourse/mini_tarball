@@ -8,7 +8,7 @@ RSpec.describe MiniTarball::HeaderWriter do
 
     let(:io) { StringIO.new.binmode }
 
-    let!(:default_options) do
+    let(:default_options) do
       {
         mode: 0644,
         mtime: Time.parse("2021-02-15T20:11:34Z"),

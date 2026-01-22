@@ -11,6 +11,7 @@ module MiniTarball
 
   class Writer
     END_OF_TAR_BLOCK_SIZE = 1024
+    NULL_BLOCK = ("\0" * END_OF_TAR_BLOCK_SIZE).freeze
     DEFAULT_UNAME = "nobody"
     DEFAULT_GNAME = "nogroup"
 
@@ -82,7 +83,7 @@ module MiniTarball
       File.open(source_file_path, "rb") { |file| IO.copy_stream(file, @write_only_io) }
 
       write_padding
-      nil
+      self
     end
 
     # :reek:ControlParameter
@@ -125,7 +126,7 @@ module MiniTarball
       )
 
       @io.seek(0, IO::SEEK_END)
-      nil
+      self
     end
 
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
@@ -169,7 +170,7 @@ module MiniTarball
       @write_only_io = old_write_only_io
       @io.seek(0, IO::SEEK_END)
 
-      nil
+      self
     end
 
     def closed?
@@ -179,7 +180,7 @@ module MiniTarball
     def close
       ensure_not_closed
 
-      @io.write("\0" * END_OF_TAR_BLOCK_SIZE)
+      @io.write(NULL_BLOCK)
       @io.close
       @closed = true
     end
@@ -202,7 +203,7 @@ module MiniTarball
 
     private def write_padding
       padding_length = (Header::BLOCK_SIZE - @io.pos) % Header::BLOCK_SIZE
-      @io.write("\0" * padding_length)
+      @io.write(NULL_BLOCK.byteslice(0, padding_length)) if padding_length > 0
     end
 
     private def ensure_safe_name(name)

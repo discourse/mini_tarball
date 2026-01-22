@@ -5,6 +5,7 @@ module MiniTarball
 
   module HeaderFormatter
     PERMISSION_BITMASK = 0007777
+    NULL_PADDING = ("\0" * Header::BLOCK_SIZE).freeze
 
     # @param value [Integer]
     # @param length [Integer]
@@ -30,7 +31,8 @@ module MiniTarball
 
     def self.zero_pad(binary)
       padding_length = (Header::BLOCK_SIZE - binary.length) % Header::BLOCK_SIZE
-      binary << "\0" * padding_length
+      binary << NULL_PADDING.byteslice(0, padding_length) if padding_length > 0
+      binary
     end
 
     private_class_method def self.fits_into_octal?(value, length)
