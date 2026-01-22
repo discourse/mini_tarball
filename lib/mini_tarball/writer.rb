@@ -6,6 +6,9 @@ module MiniTarball
   class NoIOLikeObjectError < StandardError
   end
 
+  class UnsafeNameError < StandardError
+  end
+
   class Writer
     END_OF_TAR_BLOCK_SIZE = 1024
 
@@ -57,6 +60,7 @@ module MiniTarball
       mtime: nil
     )
       ensure_not_closed
+      ensure_safe_name(name)
 
       stat = File.stat(source_file_path)
 
@@ -94,6 +98,7 @@ module MiniTarball
     )
       ensure_not_closed
       ensure_seekable_io
+      ensure_safe_name(name)
 
       header_start_position = @io.pos
       @header_writer.write(Header.new(name:))
@@ -125,6 +130,7 @@ module MiniTarball
     # :reek:TooManyStatements
     def add_file_placeholder(name:, file_size:)
       ensure_not_closed
+      ensure_safe_name(name)
 
       placeholder = {}
       placeholder[:header_start_position] = @io.pos
@@ -195,6 +201,14 @@ module MiniTarball
     private def write_padding
       padding_length = (Header::BLOCK_SIZE - @io.pos) % Header::BLOCK_SIZE
       @io.write("\0" * padding_length)
+    end
+
+    private def ensure_safe_name(name)
+      raise UnsafeNameError, "Absolute paths are not allowed: #{name}" if name.start_with?("/")
+
+      if name.start_with?("../") || name.end_with?("/..") || name.include?("/../")
+        raise UnsafeNameError, "Path traversal is not allowed: #{name}"
+      end
     end
   end
 end

@@ -76,6 +76,8 @@ RSpec.describe MiniTarball::Writer do
   end
 
   describe "#add_file" do
+    let(:source_path) { fixture_path("files/file1.txt") }
+
     it "creates a valid tar with multiple files" do
       filenames = %w[file1.txt file2.txt file3.txt]
 
@@ -92,6 +94,34 @@ RSpec.describe MiniTarball::Writer do
 
       data = Zlib::GzipReader.new(StringIO.new(io.string, "rb")).read
       with_temp_tar(filenames) { |tar| expect(data).to eq(tar) }
+    end
+
+    it "rejects absolute paths" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_file(name: "/etc/passwd", source_file_path: source_path)
+        }.to raise_error(MiniTarball::UnsafeNameError, /Absolute paths are not allowed/)
+      end
+    end
+
+    it "rejects path traversal" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_file(name: "../etc/passwd", source_file_path: source_path)
+        }.to raise_error(MiniTarball::UnsafeNameError, /Path traversal is not allowed/)
+
+        expect {
+          writer.add_file(name: "foo/../../../etc/passwd", source_file_path: source_path)
+        }.to raise_error(MiniTarball::UnsafeNameError, /Path traversal is not allowed/)
+      end
+    end
+
+    it "allows relative paths without traversal" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_file(name: "subdir/file.txt", source_file_path: source_path)
+        }.not_to raise_error
+      end
     end
   end
 
@@ -111,6 +141,41 @@ RSpec.describe MiniTarball::Writer do
         expect { add_files_from_stream(writer, %w[file1.txt]) }.to raise_error(
           MiniTarball::NoIOLikeObjectError,
         )
+      end
+    end
+
+    it "rejects absolute paths" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_file_from_stream(name: "/etc/passwd") { |s| s.write("x") }
+        }.to raise_error(MiniTarball::UnsafeNameError, /Absolute paths are not allowed/)
+      end
+    end
+
+    it "rejects path traversal" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_file_from_stream(name: "../passwd") { |s| s.write("x") }
+        }.to raise_error(MiniTarball::UnsafeNameError, /Path traversal is not allowed/)
+      end
+    end
+  end
+
+  describe "#add_file_placeholder" do
+    it "rejects absolute paths" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect { writer.add_file_placeholder(name: "/etc/passwd", file_size: 100) }.to raise_error(
+          MiniTarball::UnsafeNameError,
+          /Absolute paths are not allowed/,
+        )
+      end
+    end
+
+    it "rejects path traversal" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_file_placeholder(name: "foo/../../passwd", file_size: 100)
+        }.to raise_error(MiniTarball::UnsafeNameError, /Path traversal is not allowed/)
       end
     end
   end
