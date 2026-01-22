@@ -9,5 +9,10 @@ module MiniTarball
     def write(data)
       @io.write(data)
     end
+
+    def <<(data)
+      write(data)
+      self
+    end
   end
 end

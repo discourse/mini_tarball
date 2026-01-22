@@ -6,8 +6,7 @@ module MiniTarball
 
   class LimitedSizeStream
     attr_reader :start_position, :end_position
-    attr_reader :io
-    private :io # TODO change to `private attr_reader :io` after dropping support for Ruby 2.7
+    private attr_reader :io
 
     def initialize(io, start_position:, max_file_size:)
       @io = io
@@ -23,6 +22,11 @@ module MiniTarball
       end
 
       io.write(data)
+    end
+
+    def <<(data)
+      write(data)
+      self
     end
   end
 end

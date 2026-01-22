@@ -38,8 +38,14 @@ RSpec.describe MiniTarball::LimitedSizeStream do
     expect(wrapped_io.string).to be_empty
   end
 
-  it "doesn't implement any methods except for `write`, `start_position` and `end_position`" do
+  it "supports << operator for chaining" do
+    wrapped_io.seek(10)
+    io << "foo" << "bar"
+    expect(wrapped_io.string).to eq("\0" * 10 + "foobar")
+  end
+
+  it "only exposes write, <<, start_position and end_position methods" do
     methods = io.public_methods - Object.public_methods
-    expect(methods).to contain_exactly(:write, :start_position, :end_position)
+    expect(methods).to contain_exactly(:write, :<<, :start_position, :end_position)
   end
 end
