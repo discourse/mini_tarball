@@ -11,6 +11,8 @@ module MiniTarball
 
   class Writer
     END_OF_TAR_BLOCK_SIZE = 1024
+    DEFAULT_UNAME = "nobody"
+    DEFAULT_GNAME = "nogroup"
 
     # @param [String] filename
     # @yieldparam [Writer]
@@ -71,8 +73,8 @@ module MiniTarball
           mode: mode || stat.mode,
           uid: uid || stat.uid,
           gid: gid || stat.gid,
-          uname: uname || Etc.getpwuid(stat.uid).name,
-          gname: gname || Etc.getgrgid(stat.gid).name,
+          uname: uname || lookup_username(stat.uid),
+          gname: gname || lookup_groupname(stat.gid),
           mtime: mtime || stat.mtime,
         ),
       )
@@ -209,6 +211,18 @@ module MiniTarball
       if name.start_with?("../") || name.end_with?("/..") || name.include?("/../")
         raise UnsafeNameError, "Path traversal is not allowed: #{name}"
       end
+    end
+
+    private def lookup_username(uid)
+      Etc.getpwuid(uid).name
+    rescue ArgumentError
+      DEFAULT_UNAME
+    end
+
+    private def lookup_groupname(gid)
+      Etc.getgrgid(gid).name
+    rescue ArgumentError
+      DEFAULT_GNAME
     end
   end
 end

@@ -123,6 +123,18 @@ RSpec.describe MiniTarball::Writer do
         }.not_to raise_error
       end
     end
+
+    it "handles missing UID/GID gracefully" do
+      allow(Etc).to receive(:getpwuid).and_raise(ArgumentError)
+      allow(Etc).to receive(:getgrgid).and_raise(ArgumentError)
+
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file(name: "test.txt", source_file_path: source_path)
+      end
+
+      expect(io.string).to have_tar_header_field(:uname, MiniTarball::Writer::DEFAULT_UNAME)
+      expect(io.string).to have_tar_header_field(:gname, MiniTarball::Writer::DEFAULT_GNAME)
+    end
   end
 
   describe "#add_file_from_stream" do
