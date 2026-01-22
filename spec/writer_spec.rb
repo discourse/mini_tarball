@@ -176,6 +176,41 @@ RSpec.describe MiniTarball::Writer do
         }.to raise_error(MiniTarball::UnsafeNameError, /Path traversal is not allowed/)
       end
     end
+
+    it "handles filename at exactly 100 bytes (no long link needed)" do
+      name = "a" * 100
+
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name:, **default_options) { |s| s.write("test") }
+      end
+
+      expect(io.string).to have_tar_header_field(:name, name)
+    end
+
+    it "handles filename at 101 bytes (requires long link)" do
+      name = "a" * 101
+
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name:, **default_options) { |s| s.write("test") }
+      end
+
+      # Long link header should be present (././@LongLink)
+      expect(io.string).to have_tar_header_field(:name, "././@LongLink")
+    end
+
+    it "handles binary content with null bytes" do
+      binary_content = "\x00\x01\x02\x03\x00\xFF\xFE\x00".b
+
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: "binary.bin", **default_options) do |s|
+          s.write(binary_content)
+        end
+      end
+
+      # Extract the file content from the tar (after 512-byte header)
+      file_content = io.string.b[512, binary_content.bytesize]
+      expect(file_content).to eq(binary_content)
+    end
   end
 
   describe "#add_file_placeholder" do
@@ -305,6 +340,24 @@ RSpec.describe MiniTarball::Writer do
         )
       end
     end
+
+    it "supports filling placeholders in any order" do
+      MiniTarball::Writer.use(io) do |writer|
+        placeholder1 = writer.add_file_placeholder(name: "file1.txt", size: 100)
+        placeholder2 = writer.add_file_placeholder(name: "file2.txt", size: 100)
+
+        # Fill placeholder2 first, then placeholder1
+        writer.with_placeholder(placeholder2) do |w|
+          w.add_file_from_stream(name: "file2.txt", **default_options) { |s| s.write("content2") }
+        end
+
+        writer.with_placeholder(placeholder1) do |w|
+          w.add_file_from_stream(name: "file1.txt", **default_options) { |s| s.write("content1") }
+        end
+      end
+
+      expect(io.string).to have_tar_header_field(:name, "file1.txt")
+    end
   end
 
   describe "#close" do
@@ -318,6 +371,13 @@ RSpec.describe MiniTarball::Writer do
       expect(writer.closed?).to eq(true)
       expect { add_files_from_stream(writer, %w[file1.txt]) }.to raise_error(IOError)
       expect(io.string).to eq(fixture("archives/multiple_files.tar"))
+    end
+
+    it "raises an error when closing an already-closed writer" do
+      writer = MiniTarball::Writer.new(io)
+      writer.close
+
+      expect { writer.close }.to raise_error(IOError)
     end
   end
 
