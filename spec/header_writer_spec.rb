@@ -4,8 +4,9 @@ require "time"
 
 RSpec.describe MiniTarball::HeaderWriter do
   describe "#write" do
+    subject(:header_writer) { MiniTarball::HeaderWriter.new(io) }
+
     let(:io) { StringIO.new.binmode }
-    subject { MiniTarball::HeaderWriter.new(io) }
 
     let!(:default_options) do
       {
@@ -20,13 +21,13 @@ RSpec.describe MiniTarball::HeaderWriter do
 
     it "correctly outputs header for small file" do
       header = MiniTarball::Header.new(name: "small_file", size: 536_870_913, **default_options)
-      subject.write(header)
+      header_writer.write(header)
       expect(io.string).to eq(fixture("headers/small_file_header"))
     end
 
     it "correctly outputs header for large file" do
       header = MiniTarball::Header.new(name: "large_file", size: 10_737_418_241, **default_options)
-      subject.write(header)
+      header_writer.write(header)
       expect(io.string).to eq(fixture("headers/large_file_header"))
     end
 
@@ -39,13 +40,13 @@ RSpec.describe MiniTarball::HeaderWriter do
           size: 3,
           **default_options,
         )
-      subject.write(header)
+      header_writer.write(header)
       expect(io.string).to eq(fixture("headers/long_filename_header"))
     end
 
     it "correctly outputs header for file with Unicode name" do
       header = MiniTarball::Header.new(name: "这是一个测试.txt", size: 3, **default_options)
-      subject.write(header)
+      header_writer.write(header)
       expect(io.string).to eq(fixture("headers/unicode_filename_header"))
     end
 
@@ -56,14 +57,14 @@ RSpec.describe MiniTarball::HeaderWriter do
           size: 3,
           **default_options,
         )
-      subject.write(header)
+      header_writer.write(header)
       expect(io.string).to eq(fixture("headers/long_unicode_filename_header"))
     end
 
     it "correctly outputs header for file stored in short path" do
       header =
         MiniTarball::Header.new(name: "this/is/a/short/path/test.txt", size: 3, **default_options)
-      subject.write(header)
+      header_writer.write(header)
       expect(io.string).to eq(fixture("headers/short_path_header"))
     end
 
@@ -76,7 +77,7 @@ RSpec.describe MiniTarball::HeaderWriter do
           size: 3,
           **default_options,
         )
-      subject.write(header)
+      header_writer.write(header)
       expect(io.string).to eq(fixture("headers/long_path_header"))
     end
 
@@ -88,7 +89,7 @@ RSpec.describe MiniTarball::HeaderWriter do
           mode: 0100664,
           **default_options,
         )
-      subject.write(header)
+      header_writer.write(header)
       expect(io.string).to eq(fixture("headers/small_file_header"))
     end
   end

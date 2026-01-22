@@ -4,6 +4,12 @@ source "https://rubygems.org"
 
 gemspec
 
-group :development do
-  gem "rubocop-discourse", git: "https://github.com/discourse/rubocop-discourse.git"
-end
+gem "rake", "~> 13"
+gem "rspec"
+gem "rubocop-discourse-base"
+gem "rubocop-rspec"
+gem "rubocop-rake"
+gem "rubycritic"
+gem "simplecov"
+gem "super_diff"
+gem "syntax_tree"

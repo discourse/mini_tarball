@@ -36,7 +36,7 @@ def create_tar_header(name:, header_size:)
   filenames = []
   yield(filenames, name)
 
-  create_tar(output_filename: tar_filename, filenames: filenames)
+  create_tar(output_filename: tar_filename, filenames:)
 
   `dd if=#{tar_filename} count=1 bs=#{header_size} of=#{tar_header_filename} status=none`
 
