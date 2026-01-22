@@ -1,2 +1,11 @@
 inherit_gem:
-  rubocop-discourse: stree-compat.yml
+  rubocop-discourse-base:
+    - stree-compat.yml
+    - rubocop-rspec.yml
+
+AllCops:
+  TargetRubyVersion: "3.4"
+  NewCops: enable
+
+Style/HashSyntax:
+  EnforcedShorthandSyntax: always

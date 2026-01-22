@@ -62,7 +62,7 @@ module MiniTarball
 
       @header_writer.write(
         Header.new(
-          name: name,
+          name:,
           size: stat.size,
           mode: mode || stat.mode,
           uid: uid || stat.uid,
@@ -96,7 +96,7 @@ module MiniTarball
       ensure_seekable_io
 
       header_start_position = @io.pos
-      @header_writer.write(Header.new(name: name))
+      @header_writer.write(Header.new(name:))
 
       file_start_position = @io.pos
       yield @write_only_io
@@ -106,13 +106,13 @@ module MiniTarball
       @io.seek(header_start_position)
       @header_writer.write(
         Header.new(
-          name: name,
+          name:,
           size: file_size,
-          mode: mode,
-          uid: uid,
-          gid: gid,
-          uname: uname,
-          gname: gname,
+          mode:,
+          uid:,
+          gid:,
+          uname:,
+          gname:,
           mtime: mtime || Time.now.utc,
         ),
       )
@@ -128,7 +128,7 @@ module MiniTarball
 
       placeholder = {}
       placeholder[:header_start_position] = @io.pos
-      @header_writer.write(Header.new(name: name, size: file_size))
+      @header_writer.write(Header.new(name:, size: file_size))
 
       placeholder[:file_start_position] = @io.pos
       @io.write("\0" * file_size)
