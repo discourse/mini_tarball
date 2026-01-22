@@ -109,11 +109,11 @@ Here are some examples:
 #### Add placeholder
 Placeholders allow you to reserve space for a file within the tar. That's quite useful when you want to store a file at the beginning of the archive, but don't know the file content until you have added other files to the archive.
 
-You don't need to know the exact size of the file when you add the placeholder. The writer will fill unused space with ␀ characters if the actual file is smaller than the reserved `file_size`. Adding a file that is larger than `file_size` will raise `MiniTarball::WriteOutOfRangeError`.
+You don't need to know the exact size of the file when you add the placeholder. The writer will fill unused space with ␀ characters if the actual file is smaller than the reserved `size`. Adding a file that is larger than `size` will raise `MiniTarball::WriteOutOfRangeError`.
 
 ``` ruby
-placeholder1 = writer.add_file_placeholder(name: "file1.txt", file_size: 3925)
-placeholder2 = writer.add_file_placeholder(name: "file2.txt", file_size: 1950)
+placeholder1 = writer.add_file_placeholder(name: "file1.txt", size: 3925)
+placeholder2 = writer.add_file_placeholder(name: "file2.txt", size: 1950)
 # add more files...
 
 # fill placeholder 1

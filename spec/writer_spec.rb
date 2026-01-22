@@ -181,7 +181,7 @@ RSpec.describe MiniTarball::Writer do
   describe "#add_file_placeholder" do
     it "rejects absolute paths" do
       MiniTarball::Writer.use(io) do |writer|
-        expect { writer.add_file_placeholder(name: "/etc/passwd", file_size: 100) }.to raise_error(
+        expect { writer.add_file_placeholder(name: "/etc/passwd", size: 100) }.to raise_error(
           MiniTarball::UnsafeNameError,
           /Absolute paths are not allowed/,
         )
@@ -190,9 +190,10 @@ RSpec.describe MiniTarball::Writer do
 
     it "rejects path traversal" do
       MiniTarball::Writer.use(io) do |writer|
-        expect {
-          writer.add_file_placeholder(name: "foo/../../passwd", file_size: 100)
-        }.to raise_error(MiniTarball::UnsafeNameError, /Path traversal is not allowed/)
+        expect { writer.add_file_placeholder(name: "foo/../../passwd", size: 100) }.to raise_error(
+          MiniTarball::UnsafeNameError,
+          /Path traversal is not allowed/,
+        )
       end
     end
   end
@@ -209,7 +210,7 @@ RSpec.describe MiniTarball::Writer do
         placeholder =
           writer.add_file_placeholder(
             name: "file1.txt",
-            file_size: File.size(fixture_path("files/file1.txt")),
+            size: File.size(fixture_path("files/file1.txt")),
           )
         add_files_from_stream(writer, %w[file2.txt file3.txt])
 
@@ -225,7 +226,7 @@ RSpec.describe MiniTarball::Writer do
         placeholder =
           writer.add_file_placeholder(
             name: "file2.txt",
-            file_size: File.size(fixture_path("files/file2.txt")),
+            size: File.size(fixture_path("files/file2.txt")),
           )
         add_files_from_stream(writer, %w[file3.txt])
 
@@ -241,12 +242,12 @@ RSpec.describe MiniTarball::Writer do
         placeholder2 =
           writer.add_file_placeholder(
             name: "file2.txt",
-            file_size: File.size(fixture_path("files/file2.txt")),
+            size: File.size(fixture_path("files/file2.txt")),
           )
         placeholder3 =
           writer.add_file_placeholder(
             name: "file3.txt",
-            file_size: File.size(fixture_path("files/file3.txt")),
+            size: File.size(fixture_path("files/file3.txt")),
           )
 
         writer.with_placeholder(placeholder2) { |w| add_files(w, %w[file2.txt]) }
@@ -262,7 +263,7 @@ RSpec.describe MiniTarball::Writer do
         placeholder =
           writer.add_file_placeholder(
             name: "file1.txt",
-            file_size: File.size(fixture_path("files/file1.txt")) + 1492,
+            size: File.size(fixture_path("files/file1.txt")) + 1492,
           )
 
         writer.with_placeholder(placeholder) { |w| add_files_from_stream(w, %w[file1.txt]) }
@@ -278,7 +279,7 @@ RSpec.describe MiniTarball::Writer do
         placeholder =
           writer.add_file_placeholder(
             name: "file1.txt",
-            file_size: File.size(fixture_path("files/file1.txt")) - 100,
+            size: File.size(fixture_path("files/file1.txt")) - 100,
           )
 
         writer.with_placeholder(placeholder) do |w|
@@ -296,7 +297,7 @@ RSpec.describe MiniTarball::Writer do
         placeholder =
           writer.add_file_placeholder(
             name: "file1.txt",
-            file_size: File.size(fixture_path("files/file1.txt")),
+            size: File.size(fixture_path("files/file1.txt")),
           )
 
         expect { writer.with_placeholder(placeholder) {} }.to raise_error(

@@ -2,7 +2,7 @@
 
 RSpec.describe MiniTarball::LimitedSizeStream do
   let(:wrapped_io) { StringIO.new }
-  let(:io) { MiniTarball::LimitedSizeStream.new(wrapped_io, start_position: 10, max_file_size: 10) }
+  let(:io) { MiniTarball::LimitedSizeStream.new(wrapped_io, start_position: 10, size: 10) }
 
   it "allows writing at beginning of range" do
     wrapped_io.seek(10)

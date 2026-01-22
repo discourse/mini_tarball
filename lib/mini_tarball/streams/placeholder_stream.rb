@@ -2,8 +2,8 @@
 
 module MiniTarball
   class PlaceholderStream < LimitedSizeStream
-    def initialize(io, start_position:, file_size:)
-      super(io, start_position:, max_file_size: file_size)
+    def initialize(io, start_position:, size:)
+      super(io, start_position:, size:)
     end
 
     def write(data)

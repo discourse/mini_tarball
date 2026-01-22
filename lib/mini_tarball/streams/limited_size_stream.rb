@@ -8,10 +8,10 @@ module MiniTarball
     attr_reader :start_position, :end_position
     private attr_reader :io
 
-    def initialize(io, start_position:, max_file_size:)
+    def initialize(io, start_position:, size:)
       @io = io
       @start_position = start_position
-      @end_position = start_position + max_file_size
+      @end_position = start_position + size
     end
 
     def write(data)

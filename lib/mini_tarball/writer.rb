@@ -130,17 +130,17 @@ module MiniTarball
 
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
     # :reek:TooManyStatements
-    def add_file_placeholder(name:, file_size:)
+    def add_file_placeholder(name:, size:)
       ensure_not_closed
       ensure_safe_name(name)
 
       placeholder = {}
       placeholder[:header_start_position] = @io.pos
-      @header_writer.write(Header.new(name:, size: file_size))
+      @header_writer.write(Header.new(name:, size:))
 
       placeholder[:file_start_position] = @io.pos
-      @io.write("\0" * file_size)
-      placeholder[:file_size] = file_size
+      @io.write("\0" * size)
+      placeholder[:size] = size
 
       write_padding
 
@@ -161,7 +161,7 @@ module MiniTarball
         PlaceholderStream.new(
           @io,
           start_position: placeholder[:file_start_position],
-          file_size: placeholder[:file_size],
+          size: placeholder[:size],
         )
 
       yield self
