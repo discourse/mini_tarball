@@ -28,11 +28,11 @@ RSpec.describe MiniTarball::Writer do
   def add_files_from_stream(writer, filenames)
     filenames.each do |filename|
       path = File.join(fixture_path("files"), filename)
-      add_file_from_steam(writer, path, filename)
+      add_file_from_stream(writer, path, filename)
     end
   end
 
-  def add_file_from_steam(writer, path, filename)
+  def add_file_from_stream(writer, path, filename)
     writer.add_file_from_stream(name: filename, **default_options) do |output_stream|
       File.open(path, "rb") { |input_stream| IO.copy_stream(input_stream, output_stream) }
     end
@@ -41,12 +41,17 @@ RSpec.describe MiniTarball::Writer do
   def with_temp_tar(filenames, fixture_directory: "files")
     Dir.mktmpdir do |temp_dir|
       output_filename = File.join(temp_dir, "test.tar")
-      filenames = filenames.join(" ")
-      options = "--format=gnu --blocking-factor=1"
       tar_binary = /darwin/ =~ RUBY_PLATFORM ? "gtar" : "tar"
 
       Dir.chdir(fixture_path(fixture_directory)) do
-        `#{tar_binary} #{options} -cf #{output_filename} #{filenames}`
+        system(
+          tar_binary,
+          "--format=gnu",
+          "--blocking-factor=1",
+          "-cf",
+          output_filename,
+          *filenames,
+        )
       end
 
       yield(File.binread(output_filename))
