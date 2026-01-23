@@ -6,6 +6,9 @@ module MiniTarball
   class NoIOLikeObjectError < StandardError
   end
 
+  class NotSeekableError < StandardError
+  end
+
   class UnsafeNameError < StandardError
   end
 
@@ -183,7 +186,7 @@ module MiniTarball
     end
 
     private def ensure_seekable_io
-      raise NoIOLikeObjectError.new("No seekable IO object given") unless @io.respond_to?(:seek)
+      raise NotSeekableError, "IO object is not seekable" unless @io.respond_to?(:seek)
     end
 
     private def ensure_not_closed

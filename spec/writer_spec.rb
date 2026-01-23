@@ -156,7 +156,7 @@ RSpec.describe MiniTarball::Writer do
 
       MiniTarball::Writer.use(gzip) do |writer|
         expect { add_files_from_stream(writer, %w[file1.txt]) }.to raise_error(
-          MiniTarball::NoIOLikeObjectError,
+          MiniTarball::NotSeekableError,
         )
       end
     end
@@ -328,7 +328,7 @@ RSpec.describe MiniTarball::Writer do
             size: File.size(fixture_path("files/file1.txt")),
           )
 
-        expect { placeholder.fill {} }.to raise_error(MiniTarball::NoIOLikeObjectError)
+        expect { placeholder.fill {} }.to raise_error(MiniTarball::NotSeekableError)
       end
     end
 
