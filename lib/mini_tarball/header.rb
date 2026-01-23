@@ -64,6 +64,8 @@ module MiniTarball
         checksum: nil,
         typeflag:,
         linkname:,
+        # GNU tar format uses "ustar " (space-padded), while POSIX ustar uses "ustar\0" (null-terminated).
+        # The trailing space identifies this as GNU format, enabling GNU-specific extensions like long filenames.
         magic: "ustar ",
         version: " ",
         uname:,
