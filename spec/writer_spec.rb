@@ -398,4 +398,32 @@ RSpec.describe MiniTarball::Writer do
   it "raises an error when no valid IO object is used" do
     expect { MiniTarball::Writer.new(Object.new) }.to raise_error(MiniTarball::NoIOLikeObjectError)
   end
+
+  describe "integration: extraction with system tar" do
+    it "creates archives that can be extracted by system tar" do
+      Dir.mktmpdir do |temp_dir|
+        tar_path = File.join(temp_dir, "test.tar")
+        extract_dir = File.join(temp_dir, "extracted")
+        Dir.mkdir(extract_dir)
+
+        # Create a tar file with our Writer
+        MiniTarball::Writer.create(tar_path) do |writer|
+          writer.add_file_from_stream(name: "hello.txt", **default_options) do |stream|
+            stream.write("Hello, World!")
+          end
+          writer.add_file_from_stream(name: "subdir/nested.txt", **default_options) do |stream|
+            stream.write("Nested content")
+          end
+        end
+
+        # Extract with system tar
+        tar_binary = /darwin/ =~ RUBY_PLATFORM ? "gtar" : "tar"
+        system(tar_binary, "-xf", tar_path, "-C", extract_dir)
+
+        # Verify extracted contents
+        expect(File.read(File.join(extract_dir, "hello.txt"))).to eq("Hello, World!")
+        expect(File.read(File.join(extract_dir, "subdir/nested.txt"))).to eq("Nested content")
+      end
+    end
+  end
 end
