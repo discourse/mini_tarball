@@ -10,23 +10,23 @@ module MiniTarball
 
     # stree-ignore
     FIELDS = {
-      name:     { length: 100, type: :chars },
-      mode:     { length:   8, type: :mode },
-      uid:      { length:   8, type: :number },
-      gid:      { length:   8, type: :number },
-      size:     { length:  12, type: :number },
-      mtime:    { length:  12, type: :number },
-      checksum: { length:   8, type: :checksum },
-      typeflag: { length:   1, type: :chars },
-      linkname: { length: 100, type: :chars },
-      magic:    { length:   6, type: :chars },
-      version:  { length:   2, type: :chars },
-      uname:    { length:  32, type: :chars },
-      gname:    { length:  32, type: :chars },
-      devmajor: { length:   8, type: :number },
-      devminor: { length:   8, type: :number },
-      prefix:   { length: 155, type: :chars }
-    }
+      name:     { length: 100, type: :chars }.freeze,
+      mode:     { length:   8, type: :mode }.freeze,
+      uid:      { length:   8, type: :number }.freeze,
+      gid:      { length:   8, type: :number }.freeze,
+      size:     { length:  12, type: :number }.freeze,
+      mtime:    { length:  12, type: :number }.freeze,
+      checksum: { length:   8, type: :checksum }.freeze,
+      typeflag: { length:   1, type: :chars }.freeze,
+      linkname: { length: 100, type: :chars }.freeze,
+      magic:    { length:   6, type: :chars }.freeze,
+      version:  { length:   2, type: :chars }.freeze,
+      uname:    { length:  32, type: :chars }.freeze,
+      gname:    { length:  32, type: :chars }.freeze,
+      devmajor: { length:   8, type: :number }.freeze,
+      devminor: { length:   8, type: :number }.freeze,
+      prefix:   { length: 155, type: :chars }.freeze,
+    }.freeze
 
     def self.long_link_header(name)
       Header.new(
