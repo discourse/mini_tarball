@@ -49,7 +49,7 @@ RSpec.describe MiniTarball::Header do
       header = described_class.long_link_header("a" * 200)
 
       expect(header.value_of(:name)).to eq("././@LongLink")
-      expect(header.value_of(:typeflag)).to eq(MiniTarball::Header::TYPE_LONG_LINK)
+      expect(header.value_of(:typeflag)).to eq("L")
       expect(header.value_of(:size)).to eq(201) # name length + 1 for null terminator
     end
   end
@@ -66,16 +66,6 @@ RSpec.describe MiniTarball::Header do
     it "defines correct total header size" do
       total = MiniTarball::Header::FIELDS.values.sum { |f| f[:length] }
       expect(total).to eq(500) # 512 - 12 bytes padding
-    end
-  end
-
-  describe "TYPE constants" do
-    it "defines TYPE_REGULAR" do
-      expect(MiniTarball::Header::TYPE_REGULAR).to eq("0")
-    end
-
-    it "defines TYPE_LONG_LINK" do
-      expect(MiniTarball::Header::TYPE_LONG_LINK).to eq("L")
     end
   end
 end

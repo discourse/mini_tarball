@@ -7,6 +7,7 @@ module MiniTarball
 
     TYPE_REGULAR = "0"
     TYPE_LONG_LINK = "L"
+    private_constant :TYPE_REGULAR, :TYPE_LONG_LINK
 
     # stree-ignore
     FIELDS = {

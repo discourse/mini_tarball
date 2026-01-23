@@ -17,6 +17,7 @@ module MiniTarball
     NULL_BLOCK = ("\0" * END_OF_TAR_BLOCK_SIZE).freeze
     DEFAULT_UNAME = "nobody"
     DEFAULT_GNAME = "nogroup"
+    private_constant :END_OF_TAR_BLOCK_SIZE, :NULL_BLOCK, :DEFAULT_UNAME, :DEFAULT_GNAME
 
     # @param [String] filename
     # @yieldparam [Writer]

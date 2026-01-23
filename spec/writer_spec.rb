@@ -137,8 +137,8 @@ RSpec.describe MiniTarball::Writer do
         writer.add_file(name: "test.txt", source_file_path: source_path)
       end
 
-      expect(io.string).to have_tar_header_field(:uname, MiniTarball::Writer::DEFAULT_UNAME)
-      expect(io.string).to have_tar_header_field(:gname, MiniTarball::Writer::DEFAULT_GNAME)
+      expect(io.string).to have_tar_header_field(:uname, "nobody")
+      expect(io.string).to have_tar_header_field(:gname, "nogroup")
     end
   end
 

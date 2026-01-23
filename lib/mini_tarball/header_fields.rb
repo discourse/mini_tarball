@@ -3,6 +3,7 @@
 module MiniTarball
   class HeaderFields
     PACK_FORMAT = Header::FIELDS.values.map { |field| "a#{field[:length]}" }.join("").freeze
+    private_constant :PACK_FORMAT
 
     def initialize(header)
       @header = header
