@@ -183,18 +183,14 @@ RSpec.describe MiniTarball::Writer do
     end
 
     it "uses mode 0755 by default" do
-      MiniTarball::Writer.use(io) do |writer|
-        writer.add_directory(name: "mydir")
-      end
+      MiniTarball::Writer.use(io) { |writer| writer.add_directory(name: "mydir") }
 
       expect(io.string).to have_tar_header_field(:mode, "0000755")
     end
 
     it "rejects path traversal" do
       MiniTarball::Writer.use(io) do |writer|
-        expect {
-          writer.add_directory(name: "../etc")
-        }.to raise_error(MiniTarball::UnsafeNameError)
+        expect { writer.add_directory(name: "../etc") }.to raise_error(MiniTarball::UnsafeNameError)
       end
     end
   end
@@ -220,7 +216,9 @@ RSpec.describe MiniTarball::Writer do
 
     it "creates valid tar that extracts with system tar" do
       MiniTarball::Writer.use(io) do |writer|
-        writer.add_file_from_stream(name: "target.txt", **default_options) { |s| s.write("content") }
+        writer.add_file_from_stream(name: "target.txt", **default_options) do |s|
+          s.write("content")
+        end
         writer.add_symlink(name: "link.txt", target: "target.txt", **default_options)
       end
 
@@ -236,17 +234,15 @@ RSpec.describe MiniTarball::Writer do
 
     it "rejects targets longer than 100 bytes" do
       MiniTarball::Writer.use(io) do |writer|
-        expect {
-          writer.add_symlink(name: "link.txt", target: "a" * 101)
-        }.to raise_error(MiniTarball::LinkTargetTooLongError)
+        expect { writer.add_symlink(name: "link.txt", target: "a" * 101) }.to raise_error(
+          MiniTarball::LinkTargetTooLongError,
+        )
       end
     end
 
     it "accepts targets at exactly 100 bytes" do
       MiniTarball::Writer.use(io) do |writer|
-        expect {
-          writer.add_symlink(name: "link.txt", target: "a" * 100)
-        }.not_to raise_error
+        expect { writer.add_symlink(name: "link.txt", target: "a" * 100) }.not_to raise_error
       end
     end
   end
@@ -264,7 +260,9 @@ RSpec.describe MiniTarball::Writer do
 
     it "creates valid tar that extracts with system tar" do
       MiniTarball::Writer.use(io) do |writer|
-        writer.add_file_from_stream(name: "target.txt", **default_options) { |s| s.write("content") }
+        writer.add_file_from_stream(name: "target.txt", **default_options) do |s|
+          s.write("content")
+        end
         writer.add_hardlink(name: "link.txt", target: "target.txt", **default_options)
       end
 
@@ -280,9 +278,9 @@ RSpec.describe MiniTarball::Writer do
 
     it "rejects targets longer than 100 bytes" do
       MiniTarball::Writer.use(io) do |writer|
-        expect {
-          writer.add_hardlink(name: "link.txt", target: "a" * 101)
-        }.to raise_error(MiniTarball::LinkTargetTooLongError)
+        expect { writer.add_hardlink(name: "link.txt", target: "a" * 101) }.to raise_error(
+          MiniTarball::LinkTargetTooLongError,
+        )
       end
     end
   end
@@ -319,6 +317,75 @@ RSpec.describe MiniTarball::Writer do
         expect {
           writer.add_file_from_stream(name: "../passwd") { |s| s.write("x") }
         }.to raise_error(MiniTarball::UnsafeNameError, /Path traversal is not allowed/)
+      end
+    end
+
+    context "with size: parameter (non-seekable streams)" do
+      it "works with gzip when size is provided" do
+        gzip = Zlib::GzipWriter.new(io)
+        content = "Hello, World!"
+
+        MiniTarball::Writer.use(gzip) do |writer|
+          writer.add_file_from_stream(
+            name: "test.txt",
+            size: content.bytesize,
+            **default_options,
+          ) { |s| s.write(content) }
+        end
+
+        data = Zlib::GzipReader.new(StringIO.new(io.string, "rb")).read
+        expect(data).to have_tar_header_field(:name, "test.txt")
+        expect(data).to have_tar_header_field(:size, content.bytesize.to_s(8).rjust(11, "0"))
+      end
+
+      it "pads with NUL bytes when writing less than declared size" do
+        content = "short"
+        declared_size = 100
+
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(
+            name: "test.txt",
+            size: declared_size,
+            **default_options,
+          ) { |s| s.write(content) }
+        end
+
+        # File content starts after 512-byte header
+        file_content = io.string[512, declared_size]
+        expect(file_content[0, content.length]).to eq(content)
+        expect(file_content[content.length..]).to eq("\0" * (declared_size - content.length))
+      end
+
+      it "raises error when writing more than declared size" do
+        MiniTarball::Writer.use(io) do |writer|
+          expect {
+            writer.add_file_from_stream(name: "test.txt", size: 5, **default_options) do |s|
+              s.write("too long!")
+            end
+          }.to raise_error(MiniTarball::WriteOutOfRangeError)
+        end
+      end
+
+      it "creates valid tar that extracts correctly with gzip" do
+        Dir.mktmpdir do |temp_dir|
+          tar_gz_path = File.join(temp_dir, "test.tar.gz")
+          extract_dir = File.join(temp_dir, "extracted")
+          Dir.mkdir(extract_dir)
+
+          File.open(tar_gz_path, "wb") do |file|
+            gzip = Zlib::GzipWriter.new(file)
+            MiniTarball::Writer.use(gzip) do |writer|
+              writer.add_file_from_stream(name: "hello.txt", size: 13, **default_options) do |s|
+                s.write("Hello, World!")
+              end
+            end
+          end
+
+          tar_binary = /darwin/ =~ RUBY_PLATFORM ? "gtar" : "tar"
+          system(tar_binary, "-xzf", tar_gz_path, "-C", extract_dir)
+
+          expect(File.read(File.join(extract_dir, "hello.txt"))).to eq("Hello, World!")
+        end
       end
     end
 

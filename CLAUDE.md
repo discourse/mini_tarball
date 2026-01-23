@@ -89,6 +89,4 @@ Follow the existing convention:
 
 ## References
 
-- [GNU Tar Manual](https://www.gnu.org/software/tar/manual/html_chapter/tar_15.html)
-- `CODE_REVIEW.md` - Known issues and improvements (in plan branch)
-- `IMPLEMENTATION_PLAN.md` - Feature roadmap (in plan branch)
+- [GNU Tar Internals](https://www.gnu.org/software/tar/manual/html_chapter/Tar-Internals.html)

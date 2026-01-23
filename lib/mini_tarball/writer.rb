@@ -204,40 +204,35 @@ module MiniTarball
     # :reek:TooManyStatements
     def add_file_from_stream(
       name:,
+      size: nil,
       mode: 0644,
       uname: "nobody",
       gname: "nogroup",
       uid: nil,
       gid: nil,
-      mtime: nil
+      mtime: nil,
+      &block
     )
       ensure_not_closed
-      ensure_seekable_io
       ensure_safe_name(name)
 
-      header_start_position = @io.pos
-      @header_writer.write(Header.new(name:))
-
-      file_start_position = @io.pos
-      yield @write_only_io
-      file_size = @io.pos - file_start_position
-      write_padding
-
-      @io.seek(header_start_position)
-      @header_writer.write(
-        Header.new(
+      if size
+        add_file_from_stream_with_size(
           name:,
-          size: file_size,
+          size:,
           mode:,
-          uid:,
-          gid:,
           uname:,
           gname:,
-          mtime: mtime || Time.now.utc,
-        ),
-      )
+          uid:,
+          gid:,
+          mtime:,
+          &block
+        )
+      else
+        ensure_seekable_io
+        add_file_from_stream_seekable(name:, mode:, uname:, gname:, uid:, gid:, mtime:, &block)
+      end
 
-      @io.seek(0, IO::SEEK_END)
       self
     end
 
@@ -272,6 +267,56 @@ module MiniTarball
       yield self
 
       @write_only_io = old_write_only_io
+      @io.seek(0, IO::SEEK_END)
+    end
+
+    # :reek:LongParameterList
+    private def add_file_from_stream_with_size(
+      name:,
+      size:,
+      mode:,
+      uname:,
+      gname:,
+      uid:,
+      gid:,
+      mtime:
+    )
+      @header_writer.write(
+        Header.new(name:, size:, mode:, uid:, gid:, uname:, gname:, mtime: mtime || Time.now.utc),
+      )
+
+      capped_stream = CappedWriteStream.new(@io, max_size: size)
+      yield capped_stream
+
+      @io.write(NULL_BLOCK.byteslice(0, capped_stream.remaining)) if capped_stream.remaining > 0
+      write_padding
+    end
+
+    # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
+    # :reek:LongParameterList
+    private def add_file_from_stream_seekable(name:, mode:, uname:, gname:, uid:, gid:, mtime:)
+      header_start_position = @io.pos
+      @header_writer.write(Header.new(name:))
+
+      file_start_position = @io.pos
+      yield @write_only_io
+      file_size = @io.pos - file_start_position
+      write_padding
+
+      @io.seek(header_start_position)
+      @header_writer.write(
+        Header.new(
+          name:,
+          size: file_size,
+          mode:,
+          uid:,
+          gid:,
+          uname:,
+          gname:,
+          mtime: mtime || Time.now.utc,
+        ),
+      )
+
       @io.seek(0, IO::SEEK_END)
     end
 
