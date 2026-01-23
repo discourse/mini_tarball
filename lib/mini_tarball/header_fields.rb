@@ -2,9 +2,7 @@
 
 module MiniTarball
   class HeaderFields
-    def self.pack_format
-      @pack_format ||= Header::FIELDS.values.map { |field| "a#{field[:length]}" }.join("")
-    end
+    PACK_FORMAT = Header::FIELDS.values.map { |field| "a#{field[:length]}" }.join("").freeze
 
     def initialize(header)
       @header = header
@@ -44,7 +42,7 @@ module MiniTarball
 
     private def encode_fields
       values = @values_by_field.values
-      values.pack(HeaderFields.pack_format)
+      values.pack(PACK_FORMAT)
     end
   end
 end
