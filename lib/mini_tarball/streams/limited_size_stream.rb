@@ -2,6 +2,9 @@
 
 module MiniTarball
   class WriteOutOfRangeError < StandardError
+    def initialize(msg = "Write exceeds allowed size")
+      super
+    end
   end
 
   class LimitedSizeStream
@@ -18,7 +21,7 @@ module MiniTarball
       current_position = io.pos
 
       if current_position < start_position || current_position + data.bytesize > end_position
-        raise WriteOutOfRangeError.new("Writing outside of limits not allowed")
+        raise WriteOutOfRangeError
       end
 
       io.write(data)

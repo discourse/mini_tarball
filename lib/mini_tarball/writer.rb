@@ -4,9 +4,15 @@ require "etc"
 
 module MiniTarball
   class NoIOLikeObjectError < StandardError
+    def initialize(msg = "IO object is not valid")
+      super
+    end
   end
 
   class NotSeekableError < StandardError
+    def initialize(msg = "IO object is not seekable")
+      super
+    end
   end
 
   class UnsafeNameError < StandardError
@@ -182,12 +188,12 @@ module MiniTarball
     # :reek:ManualDispatch
     private def ensure_valid_io(io)
       unless io.respond_to?(:pos) && io.respond_to?(:write) && io.respond_to?(:close)
-        raise NoIOLikeObjectError.new("No IO object given")
+        raise NoIOLikeObjectError
       end
     end
 
     private def ensure_seekable_io
-      raise NotSeekableError, "IO object is not seekable" unless @io.respond_to?(:seek)
+      raise NotSeekableError unless @io.respond_to?(:seek)
     end
 
     private def ensure_not_closed
