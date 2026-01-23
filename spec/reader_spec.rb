@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "tmpdir"
+
 RSpec.describe MiniTarball::Reader do
   def create_tar
     io = StringIO.new.binmode
@@ -131,6 +133,132 @@ RSpec.describe MiniTarball::Reader do
       reader.close
 
       expect { reader.close }.to raise_error(/closed/)
+    end
+  end
+
+  describe "#extract_all" do
+    let(:tmpdir) { Dir.mktmpdir }
+    after { FileUtils.rm_rf(tmpdir) }
+
+    it "extracts files to destination" do
+      tar_io = create_tar
+
+      described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+
+      expect(File.read(File.join(tmpdir, "hello.txt"))).to eq("Hello!")
+      expect(File.read(File.join(tmpdir, "world.txt"))).to eq("World!")
+    end
+
+    it "extracts directories" do
+      io = StringIO.new.binmode
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_directory(name: "subdir", mode: 0755)
+        writer.add_file_from_stream(name: "subdir/file.txt") { |s| s.write("nested") }
+      end
+
+      tar_io = StringIO.new(io.string).binmode
+      described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+
+      expect(File.directory?(File.join(tmpdir, "subdir"))).to be true
+      expect(File.read(File.join(tmpdir, "subdir", "file.txt"))).to eq("nested")
+    end
+
+    it "extracts symlinks" do
+      io = StringIO.new.binmode
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: "target.txt") { |s| s.write("content") }
+        writer.add_symlink(name: "link.txt", target: "target.txt")
+      end
+
+      tar_io = StringIO.new(io.string).binmode
+      described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+
+      link_path = File.join(tmpdir, "link.txt")
+      expect(File.symlink?(link_path)).to be true
+      expect(File.readlink(link_path)).to eq("target.txt")
+    end
+
+    it "extracts hardlinks" do
+      io = StringIO.new.binmode
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: "original.txt") { |s| s.write("content") }
+        writer.add_hardlink(name: "hardlink.txt", target: "original.txt")
+      end
+
+      tar_io = StringIO.new(io.string).binmode
+      described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+
+      original = File.join(tmpdir, "original.txt")
+      hardlink = File.join(tmpdir, "hardlink.txt")
+      expect(File.stat(original).ino).to eq(File.stat(hardlink).ino)
+    end
+
+    it "rejects path traversal in filenames" do
+      io = StringIO.new.binmode
+      # Manually craft a tar with path traversal - we can't use Writer's add_file
+      # because it rejects traversal. Instead, use a real traversal attempt.
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: "safe.txt") { |s| s.write("ok") }
+      end
+
+      # Create a tar with traversal by manipulating raw bytes
+      tar_data = io.string.dup
+      # Replace "safe.txt" with "../etc/passwd" padded to same length
+      tar_data[0, 100] = "../escape.txt".ljust(100, "\0")
+      # Recalculate checksum
+      checksum_offset = 148
+      tar_data[checksum_offset, 8] = " " * 8
+      checksum = tar_data[0, 512].bytes.sum
+      tar_data[checksum_offset, 8] = format("%06o\0 ", checksum)
+
+      tar_io = StringIO.new(tar_data).binmode
+      expect do
+        described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+      end.to raise_error(MiniTarball::PathTraversalError)
+    end
+
+    it "rejects absolute symlink targets" do
+      io = StringIO.new.binmode
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: "dummy.txt") { |s| s.write("x") }
+      end
+
+      # Manually create a symlink entry pointing to /etc/passwd
+      tar_data = io.string.dup
+      # Change typeflag to symlink (byte 156) and set linkname
+      tar_data[156] = "2"
+      tar_data[157, 100] = "/etc/passwd".ljust(100, "\0")
+      # Recalculate checksum
+      checksum_offset = 148
+      tar_data[checksum_offset, 8] = " " * 8
+      checksum = tar_data[0, 512].bytes.sum
+      tar_data[checksum_offset, 8] = format("%06o\0 ", checksum)
+
+      tar_io = StringIO.new(tar_data).binmode
+      expect do
+        described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+      end.to raise_error(MiniTarball::PathTraversalError)
+    end
+
+    it "rejects symlinks escaping destination via .." do
+      io = StringIO.new.binmode
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_symlink(name: "escape", target: "../../etc/passwd")
+      end
+
+      tar_io = StringIO.new(io.string).binmode
+      expect do
+        described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+      end.to raise_error(MiniTarball::PathTraversalError)
+    end
+
+    it "returns self for chaining" do
+      tar_io = create_tar
+      reader = described_class.new(tar_io)
+
+      result = reader.extract_all(tmpdir)
+
+      expect(result).to be(reader)
     end
   end
 end
