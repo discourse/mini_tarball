@@ -199,6 +199,94 @@ RSpec.describe MiniTarball::Writer do
     end
   end
 
+  describe "#add_symlink" do
+    it "creates a symlink entry" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_symlink(name: "link.txt", target: "target.txt", **default_options)
+      end
+
+      expect(io.string).to have_tar_header_field(:name, "link.txt")
+      expect(io.string).to have_tar_header_field(:typeflag, "2")
+      expect(io.string).to have_tar_header_field(:linkname, "target.txt")
+    end
+
+    it "uses mode 0777 by default" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_symlink(name: "link.txt", target: "target.txt")
+      end
+
+      expect(io.string).to have_tar_header_field(:mode, "0000777")
+    end
+
+    it "creates valid tar that extracts with system tar" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: "target.txt", **default_options) { |s| s.write("content") }
+        writer.add_symlink(name: "link.txt", target: "target.txt", **default_options)
+      end
+
+      Dir.mktmpdir do |temp_dir|
+        tar_path = File.join(temp_dir, "test.tar")
+        File.binwrite(tar_path, io.string)
+
+        system("tar", "-xf", tar_path, "-C", temp_dir)
+        expect(File.symlink?(File.join(temp_dir, "link.txt"))).to be true
+        expect(File.readlink(File.join(temp_dir, "link.txt"))).to eq("target.txt")
+      end
+    end
+
+    it "rejects targets longer than 100 bytes" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_symlink(name: "link.txt", target: "a" * 101)
+        }.to raise_error(MiniTarball::LinkTargetTooLongError)
+      end
+    end
+
+    it "accepts targets at exactly 100 bytes" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_symlink(name: "link.txt", target: "a" * 100)
+        }.not_to raise_error
+      end
+    end
+  end
+
+  describe "#add_hardlink" do
+    it "creates a hardlink entry" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_hardlink(name: "link.txt", target: "target.txt", **default_options)
+      end
+
+      expect(io.string).to have_tar_header_field(:name, "link.txt")
+      expect(io.string).to have_tar_header_field(:typeflag, "1")
+      expect(io.string).to have_tar_header_field(:linkname, "target.txt")
+    end
+
+    it "creates valid tar that extracts with system tar" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: "target.txt", **default_options) { |s| s.write("content") }
+        writer.add_hardlink(name: "link.txt", target: "target.txt", **default_options)
+      end
+
+      Dir.mktmpdir do |temp_dir|
+        tar_path = File.join(temp_dir, "test.tar")
+        File.binwrite(tar_path, io.string)
+
+        system("tar", "-xf", tar_path, "-C", temp_dir)
+        expect(File.exist?(File.join(temp_dir, "link.txt"))).to be true
+        expect(File.read(File.join(temp_dir, "link.txt"))).to eq("content")
+      end
+    end
+
+    it "rejects targets longer than 100 bytes" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_hardlink(name: "link.txt", target: "a" * 101)
+        }.to raise_error(MiniTarball::LinkTargetTooLongError)
+      end
+    end
+  end
+
   describe "#add_file_from_stream" do
     it "creates a valid tar with multiple files" do
       MiniTarball::Writer.use(io) do |writer|

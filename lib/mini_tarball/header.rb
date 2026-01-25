@@ -6,6 +6,8 @@ module MiniTarball
     BLOCK_SIZE = 512 # bytes
 
     TYPE_REGULAR = "0"
+    TYPE_HARDLINK = "1"
+    TYPE_SYMLINK = "2"
     TYPE_DIRECTORY = "5"
     TYPE_LONG_LINK = "L"
     private_constant :TYPE_REGULAR, :TYPE_LONG_LINK

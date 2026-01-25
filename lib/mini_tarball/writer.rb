@@ -18,6 +18,12 @@ module MiniTarball
   class UnsafeNameError < StandardError
   end
 
+  class LinkTargetTooLongError < StandardError
+    def initialize(msg = "Link target exceeds 100 bytes")
+      super
+    end
+  end
+
   class Writer
     END_OF_TAR_BLOCK_SIZE = 1024
     NULL_BLOCK = ("\0" * END_OF_TAR_BLOCK_SIZE).freeze
@@ -120,6 +126,72 @@ module MiniTarball
           gname:,
           mtime: mtime || Time.now.utc,
           typeflag: Header::TYPE_DIRECTORY,
+        ),
+      )
+
+      self
+    end
+
+    # :reek:LongParameterList
+    def add_symlink(
+      name:,
+      target:,
+      mode: 0777,
+      uname: "nobody",
+      gname: "nogroup",
+      uid: nil,
+      gid: nil,
+      mtime: nil
+    )
+      ensure_not_closed
+      ensure_safe_name(name)
+      ensure_valid_link_target(target)
+
+      @header_writer.write(
+        Header.new(
+          name:,
+          size: 0,
+          mode:,
+          uid:,
+          gid:,
+          uname:,
+          gname:,
+          mtime: mtime || Time.now.utc,
+          typeflag: Header::TYPE_SYMLINK,
+          linkname: target,
+        ),
+      )
+
+      self
+    end
+
+    # :reek:LongParameterList
+    def add_hardlink(
+      name:,
+      target:,
+      mode: 0644,
+      uname: "nobody",
+      gname: "nogroup",
+      uid: nil,
+      gid: nil,
+      mtime: nil
+    )
+      ensure_not_closed
+      ensure_safe_name(name)
+      ensure_valid_link_target(target)
+
+      @header_writer.write(
+        Header.new(
+          name:,
+          size: 0,
+          mode:,
+          uid:,
+          gid:,
+          uname:,
+          gname:,
+          mtime: mtime || Time.now.utc,
+          typeflag: Header::TYPE_HARDLINK,
+          linkname: target,
         ),
       )
 
@@ -242,6 +314,11 @@ module MiniTarball
       if name.start_with?("../") || name.end_with?("/..") || name.include?("/../")
         raise UnsafeNameError, "Path traversal is not allowed: #{name}"
       end
+    end
+
+    private def ensure_valid_link_target(target)
+      max_length = Header::FIELDS[:linkname][:length]
+      raise LinkTargetTooLongError if target.bytesize > max_length
     end
 
     private def lookup_username(uid)
