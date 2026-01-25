@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A minimal Ruby implementation of the GNU Tar format for writing (and eventually reading) tar archives with streaming support.
+A minimal Ruby implementation of the GNU Tar format for reading and writing tar archives with streaming support.
 
 ## Ruby Version
 
@@ -48,20 +48,21 @@ A minimal Ruby implementation of the GNU Tar format for writing (and eventually 
 ```
 lib/mini_tarball/
 ├── writer.rb           # Main Writer class
-├── reader.rb           # Main Reader class (planned)
+├── reader.rb           # Main Reader class
 ├── header.rb           # Tar header structure
 ├── header_fields.rb    # Header field encoding
 ├── header_formatter.rb # Number formatting (octal, base-256)
 ├── header_writer.rb    # Header writing logic
-├── header_parser.rb    # Header parsing logic (planned)
-├── entry.rb            # Archive entry representation (planned)
+├── header_parser.rb    # Header parsing logic
+├── entry.rb            # Archive entry representation
+├── placeholder.rb      # Placeholder for deferred file writing
 ├── version.rb          # Version constant
 └── streams/            # IO wrapper classes
     ├── write_only_stream.rb
     ├── limited_size_stream.rb
     ├── placeholder_stream.rb
-    ├── capped_write_stream.rb  # (planned)
-    └── bounded_read_stream.rb  # (planned)
+    ├── capped_write_stream.rb
+    └── bounded_read_stream.rb
 ```
 
 ## Commit Messages

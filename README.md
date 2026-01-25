@@ -3,18 +3,18 @@
 This is a **minimal** implementation of the [GNU Tar format](https://www.gnu.org/software/tar/manual/html_chapter/tar_15.html) in Ruby.
 
 #### 👍 Supported features
-* Writing tar files
-* Adding files with
-  * unlimited file size
-  * unlimited file name length
+* Reading and writing tar files
+* Adding files, directories, symlinks, and hardlinks
+* Unlimited file size and file name length
 * Unicode file names
-* Works with streams, so there's no need to waste disk space by creating temporary files
+* Works with streams, including non-seekable streams like `Zlib::GzipWriter`
+* Path traversal protection on both read and write
+* No temporary files needed
 
 #### 👎 Currently not supported features
-* Reading tar files
-* Adding hardlinks, symlinks or directories
-* Other features of GNU tar like sparse files
-* Creating POSIX.1-2001 (pax) archives or any other tar format
+* Sparse files
+* Long symlink/hardlink targets (> 100 bytes)
+* POSIX.1-2001 (pax) archives or other tar formats
 
 ## Installation
 
@@ -75,7 +75,7 @@ By default the file's attributes are stored in the tar file, but you can overrid
 #### Add files from a stream
 You can add files of unknown size by calling `MiniTarball::Writer#add_file_from_stream`. The required `name` argument can be a file name or a complete path.
 
-> 💡 This method doesn't work with non-seekable streams like `Zlib::GzipWriter`.
+> 💡 Without a `size:` parameter, this method requires a seekable stream. For non-seekable streams like `Zlib::GzipWriter`, see [Streaming with Gzip](#streaming-with-gzip).
 
 Here are some examples:
 
@@ -130,6 +130,85 @@ placeholder2.fill do |w|
   end
 end
 ```
+
+### Add directories
+
+``` ruby
+writer.add_directory(name: "my_folder")
+writer.add_directory(name: "nested/path/to/folder", mode: 0700)
+```
+
+### Add symlinks and hardlinks
+
+``` ruby
+# Symlink (target must be <= 100 bytes)
+writer.add_symlink(name: "link.txt", target: "original.txt")
+
+# Hardlink (target must already exist in archive)
+writer.add_hardlink(name: "copy.txt", target: "original.txt")
+```
+
+### Streaming with Gzip
+
+When writing to non-seekable streams like `Zlib::GzipWriter`, you must provide the `size:` parameter:
+
+``` ruby
+require "zlib"
+
+Zlib::GzipWriter.open("archive.tar.gz") do |gzip|
+  MiniTarball::Writer.use(gzip) do |writer|
+    json_data = { users: [...] }.to_json
+
+    writer.add_file_from_stream(name: "data.json", size: json_data.bytesize) do |stream|
+      stream.write(json_data)
+    end
+  end
+end
+```
+
+If the exact size is unknown, you can provide a maximum size. Any unused space will be padded with null bytes (which compress extremely well):
+
+``` ruby
+writer.add_file_from_stream(name: "export.csv", size: 1024 * 1024) do |stream|
+  records.each { |record| stream.write(record.to_csv) }
+  # Remaining space automatically padded with NULs
+end
+```
+
+## Reading tar files
+
+### Iterate over entries
+
+``` ruby
+File.open("archive.tar", "rb") do |file|
+  MiniTarball::Reader.use(file) do |reader|
+    reader.each_entry do |entry, content_stream|
+      puts "#{entry.name} (#{entry.size} bytes)"
+
+      if entry.file?
+        data = content_stream.read
+        # process file content...
+      elsif entry.directory?
+        # handle directory...
+      elsif entry.symlink?
+        puts "  -> #{entry.linkname}"
+      end
+    end
+  end
+end
+```
+
+### Extract all entries
+
+``` ruby
+File.open("archive.tar", "rb") do |file|
+  MiniTarball::Reader.use(file) do |reader|
+    reader.extract_all("/path/to/destination")
+  end
+end
+```
+
+The `extract_all` method includes path traversal protection and will raise `MiniTarball::PathTraversalError` if an entry attempts to write outside the destination directory.
 
 ## Development
 
