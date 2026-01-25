@@ -142,6 +142,63 @@ RSpec.describe MiniTarball::Writer do
     end
   end
 
+  describe "#add_directory" do
+    it "creates a directory entry" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_directory(name: "mydir", **default_options)
+      end
+
+      expect(io.string).to have_tar_header_field(:name, "mydir/")
+      expect(io.string).to have_tar_header_field(:typeflag, "5")
+    end
+
+    it "appends trailing slash if missing" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_directory(name: "mydir", **default_options)
+      end
+
+      expect(io.string).to have_tar_header_field(:name, "mydir/")
+    end
+
+    it "preserves trailing slash if present" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_directory(name: "mydir/", **default_options)
+      end
+
+      expect(io.string).to have_tar_header_field(:name, "mydir/")
+    end
+
+    it "creates valid tar that extracts with system tar" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_directory(name: "testdir", **default_options)
+      end
+
+      Dir.mktmpdir do |temp_dir|
+        tar_path = File.join(temp_dir, "test.tar")
+        File.binwrite(tar_path, io.string)
+
+        system("tar", "-xf", tar_path, "-C", temp_dir)
+        expect(File.directory?(File.join(temp_dir, "testdir"))).to be true
+      end
+    end
+
+    it "uses mode 0755 by default" do
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_directory(name: "mydir")
+      end
+
+      expect(io.string).to have_tar_header_field(:mode, "0000755")
+    end
+
+    it "rejects path traversal" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_directory(name: "../etc")
+        }.to raise_error(MiniTarball::UnsafeNameError)
+      end
+    end
+  end
+
   describe "#add_file_from_stream" do
     it "creates a valid tar with multiple files" do
       MiniTarball::Writer.use(io) do |writer|

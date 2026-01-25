@@ -95,6 +95,37 @@ module MiniTarball
       self
     end
 
+    # :reek:LongParameterList
+    def add_directory(
+      name:,
+      mode: 0755,
+      uname: "nobody",
+      gname: "nogroup",
+      uid: nil,
+      gid: nil,
+      mtime: nil
+    )
+      ensure_not_closed
+      name = "#{name}/" unless name.end_with?("/")
+      ensure_safe_name(name)
+
+      @header_writer.write(
+        Header.new(
+          name:,
+          size: 0,
+          mode:,
+          uid:,
+          gid:,
+          uname:,
+          gname:,
+          mtime: mtime || Time.now.utc,
+          typeflag: Header::TYPE_DIRECTORY,
+        ),
+      )
+
+      self
+    end
+
     # :reek:ControlParameter
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
     # :reek:LongParameterList
