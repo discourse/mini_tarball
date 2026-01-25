@@ -90,4 +90,4 @@ Follow the existing convention:
 
 ## References
 
-- [GNU Tar Manual](https://www.gnu.org/software/tar/manual/html_chapter/tar_15.html)
+- [GNU Tar Internals](https://www.gnu.org/software/tar/manual/html_chapter/Tar-Internals.html)

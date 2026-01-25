@@ -232,11 +232,22 @@ RSpec.describe MiniTarball::Writer do
       end
     end
 
-    it "rejects targets longer than 100 bytes" do
+    it "supports targets longer than 100 bytes" do
+      long_target = "very/long/path/" + "a" * 100
+
       MiniTarball::Writer.use(io) do |writer|
-        expect { writer.add_symlink(name: "link.txt", target: "a" * 101) }.to raise_error(
-          MiniTarball::LinkTargetTooLongError,
-        )
+        writer.add_file_from_stream(name: long_target, **default_options) { |s| s.write("content") }
+        writer.add_symlink(name: "link.txt", target: long_target, **default_options)
+      end
+
+      Dir.mktmpdir do |temp_dir|
+        tar_path = File.join(temp_dir, "test.tar")
+        File.binwrite(tar_path, io.string)
+
+        system("tar", "-xf", tar_path, "-C", temp_dir)
+        link_path = File.join(temp_dir, "link.txt")
+        expect(File.symlink?(link_path)).to be true
+        expect(File.readlink(link_path)).to eq(long_target)
       end
     end
 
@@ -276,11 +287,21 @@ RSpec.describe MiniTarball::Writer do
       end
     end
 
-    it "rejects targets longer than 100 bytes" do
+    it "supports targets longer than 100 bytes" do
+      long_target = "very/long/path/" + "a" * 100
+
       MiniTarball::Writer.use(io) do |writer|
-        expect { writer.add_hardlink(name: "link.txt", target: "a" * 101) }.to raise_error(
-          MiniTarball::LinkTargetTooLongError,
-        )
+        writer.add_file_from_stream(name: long_target, **default_options) { |s| s.write("content") }
+        writer.add_hardlink(name: "link.txt", target: long_target, **default_options)
+      end
+
+      Dir.mktmpdir do |temp_dir|
+        tar_path = File.join(temp_dir, "test.tar")
+        File.binwrite(tar_path, io.string)
+
+        system("tar", "-xf", tar_path, "-C", temp_dir)
+        expect(File.exist?(File.join(temp_dir, "link.txt"))).to be true
+        expect(File.read(File.join(temp_dir, "link.txt"))).to eq("content")
       end
     end
   end

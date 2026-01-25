@@ -10,7 +10,8 @@ module MiniTarball
     TYPE_SYMLINK = "2"
     TYPE_DIRECTORY = "5"
     TYPE_LONG_LINK = "L"
-    private_constant :TYPE_REGULAR, :TYPE_LONG_LINK
+    TYPE_LONG_LINKNAME = "K"
+    private_constant :TYPE_REGULAR, :TYPE_LONG_LINK, :TYPE_LONG_LINKNAME
 
     # stree-ignore
     FIELDS = {
@@ -40,6 +41,19 @@ module MiniTarball
         gid: 0,
         size: name.bytesize + 1,
         typeflag: TYPE_LONG_LINK,
+        uname: "root",
+        gname: "root",
+      )
+    end
+
+    def self.long_linkname_header(target)
+      Header.new(
+        name: "././@LongLink",
+        mode: 0644,
+        uid: 0,
+        gid: 0,
+        size: target.bytesize + 1,
+        typeflag: TYPE_LONG_LINKNAME,
         uname: "root",
         gname: "root",
       )
@@ -91,6 +105,10 @@ module MiniTarball
 
     def has_long_name?
       value_of(:name).bytesize > FIELDS[:name][:length]
+    end
+
+    def has_long_linkname?
+      value_of(:linkname).bytesize > FIELDS[:linkname][:length]
     end
   end
 end

@@ -27,6 +27,9 @@ module MiniTarball
 
       ensure_not_closed
 
+      long_linkname = nil
+      long_name = nil
+
       loop do
         header_data = @io.read(Header::BLOCK_SIZE)
         break if header_data.nil?
@@ -34,24 +37,27 @@ module MiniTarball
         values = HeaderParser.parse(header_data)
         break if values.nil? # End of archive or invalid
 
-        entry = Entry.new(values)
-
-        # Handle GNU long link for long filenames
-        if values[:typeflag] == "L" # TYPE_LONG_LINK
-          long_name = read_content(values[:size]).delete("\0")
+        # Handle GNU long linkname (typeflag K) for long symlink/hardlink targets
+        if values[:typeflag] == "K"
+          long_linkname = read_content(values[:size]).delete("\0")
           skip_padding(values[:size])
-
-          # Read the actual entry header
-          header_data = @io.read(Header::BLOCK_SIZE)
-          break if header_data.nil?
-
-          values = HeaderParser.parse(header_data)
-          break if values.nil?
-
-          values[:name] = long_name
-          entry = Entry.new(values)
+          next
         end
 
+        # Handle GNU long link (typeflag L) for long filenames
+        if values[:typeflag] == "L"
+          long_name = read_content(values[:size]).delete("\0")
+          skip_padding(values[:size])
+          next
+        end
+
+        # Apply any pending long name/linkname
+        values[:name] = long_name if long_name
+        values[:linkname] = long_linkname if long_linkname
+        long_name = nil
+        long_linkname = nil
+
+        entry = Entry.new(values)
         content_stream = BoundedReadStream.new(@io, size: entry.size)
         yield entry, content_stream
 

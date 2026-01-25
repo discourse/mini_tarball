@@ -18,12 +18,6 @@ module MiniTarball
   class UnsafeNameError < StandardError
   end
 
-  class LinkTargetTooLongError < StandardError
-    def initialize(msg = "Link target exceeds 100 bytes")
-      super
-    end
-  end
-
   class Writer
     END_OF_TAR_BLOCK_SIZE = 1024
     NULL_BLOCK = ("\0" * END_OF_TAR_BLOCK_SIZE).freeze
@@ -145,7 +139,6 @@ module MiniTarball
     )
       ensure_not_closed
       ensure_safe_name(name)
-      ensure_valid_link_target(target)
 
       @header_writer.write(
         Header.new(
@@ -178,7 +171,6 @@ module MiniTarball
     )
       ensure_not_closed
       ensure_safe_name(name)
-      ensure_valid_link_target(target)
 
       @header_writer.write(
         Header.new(
@@ -359,11 +351,6 @@ module MiniTarball
       if name.start_with?("../") || name.end_with?("/..") || name.include?("/../")
         raise UnsafeNameError, "Path traversal is not allowed: #{name}"
       end
-    end
-
-    private def ensure_valid_link_target(target)
-      max_length = Header::FIELDS[:linkname][:length]
-      raise LinkTargetTooLongError if target.bytesize > max_length
     end
 
     private def lookup_username(uid)

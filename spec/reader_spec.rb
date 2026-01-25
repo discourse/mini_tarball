@@ -91,6 +91,25 @@ RSpec.describe MiniTarball::Reader do
       expect(entries).to eq([long_name])
     end
 
+    it "handles symlinks with long targets" do
+      io = StringIO.new.binmode
+      long_target = "path/to/" + "a" * 150 + ".txt"
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: long_target) { |s| s.write("content") }
+        writer.add_symlink(name: "link.txt", target: long_target)
+      end
+
+      tar_io = StringIO.new(io.string).binmode
+      symlink_entry = nil
+
+      described_class.use(tar_io) do |reader|
+        reader.each_entry { |entry, _| symlink_entry = entry if entry.symlink? }
+      end
+
+      expect(symlink_entry).not_to be_nil
+      expect(symlink_entry.linkname).to eq(long_target)
+    end
+
     it "handles directories" do
       io = StringIO.new.binmode
       MiniTarball::Writer.use(io) do |writer|

@@ -13,7 +13,6 @@ This is a **minimal** implementation of the [GNU Tar format](https://www.gnu.org
 
 #### 👎 Currently not supported features
 * Sparse files
-* Long symlink/hardlink targets (> 100 bytes)
 * POSIX.1-2001 (pax) archives or other tar formats
 
 ## Installation
@@ -141,7 +140,7 @@ writer.add_directory(name: "nested/path/to/folder", mode: 0700)
 ### Add symlinks and hardlinks
 
 ``` ruby
-# Symlink (target must be <= 100 bytes)
+# Symlink
 writer.add_symlink(name: "link.txt", target: "original.txt")
 
 # Hardlink (target must already exist in archive)

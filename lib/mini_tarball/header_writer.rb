@@ -7,6 +7,7 @@ module MiniTarball
     end
 
     def write(header)
+      write_long_linkname_header(header) if header.has_long_linkname?
       write_long_name_header(header) if header.has_long_name?
       @io.write(header.to_binary)
     end
@@ -15,6 +16,15 @@ module MiniTarball
       name = header.value_of(:name)
       private_header = Header.long_link_header(name)
       binary_data = [name].pack("Z*")
+
+      @io.write(private_header.to_binary)
+      @io.write(HeaderFormatter.zero_pad(binary_data))
+    end
+
+    private def write_long_linkname_header(header)
+      linkname = header.value_of(:linkname)
+      private_header = Header.long_linkname_header(linkname)
+      binary_data = [linkname].pack("Z*")
 
       @io.write(private_header.to_binary)
       @io.write(HeaderFormatter.zero_pad(binary_data))
