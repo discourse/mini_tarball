@@ -221,6 +221,78 @@ RSpec.describe MiniTarball::Reader do
         expect(contents["small.txt"]).to eq("small")
       end
     end
+
+    context "with max_file_size validation" do
+      def create_file_header(size:)
+        MiniTarball::Header.new(
+          name: "large.txt",
+          mode: 0644,
+          uid: 0,
+          gid: 0,
+          size:,
+          uname: "root",
+          gname: "root",
+        )
+      end
+
+      it "raises error for file exceeding max_file_size" do
+        # Create a header claiming 10GB size
+        header = create_file_header(size: 10_000_000_000)
+        tar_data = header.to_binary + ("\0" * 1024)
+
+        tar_io = StringIO.new(tar_data).binmode
+        expect do described_class.use(tar_io) { |reader| reader.each_entry {} } end.to raise_error(
+          MiniTarball::InvalidHeaderError,
+          /File size exceeds maximum/,
+        )
+      end
+
+      it "allows custom max_file_size" do
+        # Create a header claiming 1KB size
+        header = create_file_header(size: 1024)
+        content = "x" * 1024
+        padding = "\0" * (512 - (1024 % 512))
+        tar_data = header.to_binary + content + padding + ("\0" * 1024)
+
+        tar_io = StringIO.new(tar_data).binmode
+        # Set max to 500 bytes - should reject 1KB file
+        expect do
+          described_class.use(tar_io, max_file_size: 500) { |reader| reader.each_entry {} }
+        end.to raise_error(MiniTarball::InvalidHeaderError, /File size exceeds maximum/)
+      end
+
+      it "accepts file at exactly max_file_size" do
+        io = StringIO.new.binmode
+        content = "x" * 100
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: "exact.txt") { |s| s.write(content) }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        entries = []
+        described_class.use(tar_io, max_file_size: 100) do |reader|
+          reader.each_entry { |entry, _| entries << entry.name }
+        end
+
+        expect(entries).to eq(["exact.txt"])
+      end
+
+      it "uses default 8GB limit" do
+        io = StringIO.new.binmode
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: "normal.txt") { |s| s.write("content") }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        entries = []
+        # Default should allow normal files
+        described_class.use(tar_io) do |reader|
+          reader.each_entry { |entry, _| entries << entry.name }
+        end
+
+        expect(entries).to eq(["normal.txt"])
+      end
+    end
   end
 
   describe "#close" do

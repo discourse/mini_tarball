@@ -16,17 +16,21 @@ module MiniTarball
     # Chunk size for skipping content (64KB)
     SKIP_CHUNK_SIZE = 65_536
 
-    private_constant :MAX_LONG_NAME_SIZE, :SKIP_CHUNK_SIZE
+    # Default maximum file size (8GB)
+    DEFAULT_MAX_FILE_SIZE = 8_589_934_592
 
-    def self.use(io)
-      reader = new(io)
+    private_constant :MAX_LONG_NAME_SIZE, :SKIP_CHUNK_SIZE, :DEFAULT_MAX_FILE_SIZE
+
+    def self.use(io, max_file_size: DEFAULT_MAX_FILE_SIZE)
+      reader = new(io, max_file_size:)
       yield reader
     ensure
       reader&.close
     end
 
-    def initialize(io)
+    def initialize(io, max_file_size: DEFAULT_MAX_FILE_SIZE)
       @io = io
+      @max_file_size = max_file_size
       @closed = false
     end
 
@@ -66,6 +70,11 @@ module MiniTarball
         values[:linkname] = long_linkname if long_linkname
         long_name = nil
         long_linkname = nil
+
+        # Validate file size
+        if values[:size] && values[:size] > @max_file_size
+          raise InvalidHeaderError, "File size exceeds maximum (#{@max_file_size} bytes)"
+        end
 
         entry = Entry.new(values)
         content_stream = BoundedReadStream.new(@io, size: entry.size)
