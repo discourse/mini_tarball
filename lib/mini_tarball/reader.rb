@@ -146,7 +146,28 @@ module MiniTarball
         raise PathTraversalError
       end
 
+      # Verify no symlinks in existing path components could escape
+      validate_path_components(full_path, destination)
+
       full_path
+    end
+
+    def validate_path_components(full_path, destination)
+      # Check each existing directory component for symlinks escaping destination
+      path = destination
+      relative = full_path.delete_prefix(destination + "/")
+
+      # Check all components except the last (which is the file/dir being created)
+      relative.split("/")[0..-2].each do |component|
+        path = File.join(path, component)
+        next unless File.symlink?(path)
+
+        # Resolve symlink and verify it stays within destination
+        resolved = File.realpath(path)
+        unless resolved.start_with?(destination + "/") || resolved == destination
+          raise PathTraversalError, "Symlink in path escapes destination"
+        end
+      end
     end
 
     def validate_symlink_target(target, destination, link_path)

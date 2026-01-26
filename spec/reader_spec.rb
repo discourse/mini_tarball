@@ -357,6 +357,61 @@ RSpec.describe MiniTarball::Reader do
       end.to raise_error(MiniTarball::PathTraversalError)
     end
 
+    context "with symlink-in-path attacks" do
+      it "rejects extraction through pre-existing symlink pointing outside destination" do
+        # Create a symlink inside tmpdir pointing to /tmp (outside destination)
+        outside_dir = Dir.mktmpdir
+        begin
+          symlink_path = File.join(tmpdir, "escape_link")
+          File.symlink(outside_dir, symlink_path)
+
+          # Create a tar that writes through the symlink
+          io = StringIO.new.binmode
+          MiniTarball::Writer.use(io) do |writer|
+            writer.add_file_from_stream(name: "escape_link/pwned.txt") { |s| s.write("pwned") }
+          end
+
+          tar_io = StringIO.new(io.string).binmode
+          expect do
+            described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+          end.to raise_error(MiniTarball::PathTraversalError, /Symlink in path escapes destination/)
+        ensure
+          FileUtils.rm_rf(outside_dir)
+        end
+      end
+
+      it "allows extraction through symlink pointing within destination" do
+        # Create a subdirectory and symlink to it within tmpdir
+        real_dir = File.join(tmpdir, "real_subdir")
+        FileUtils.mkdir_p(real_dir)
+        symlink_path = File.join(tmpdir, "link_to_subdir")
+        File.symlink(real_dir, symlink_path)
+
+        io = StringIO.new.binmode
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: "link_to_subdir/file.txt") { |s| s.write("content") }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+
+        expect(File.read(File.join(real_dir, "file.txt"))).to eq("content")
+      end
+
+      it "handles deeply nested paths correctly" do
+        io = StringIO.new.binmode
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_directory(name: "a/b/c/d")
+          writer.add_file_from_stream(name: "a/b/c/d/deep.txt") { |s| s.write("deep") }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+
+        expect(File.read(File.join(tmpdir, "a/b/c/d/deep.txt"))).to eq("deep")
+      end
+    end
+
     it "returns self for chaining" do
       tar_io = create_tar
       reader = described_class.new(tar_io)
