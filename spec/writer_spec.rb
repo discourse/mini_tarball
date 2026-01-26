@@ -121,6 +121,44 @@ RSpec.describe MiniTarball::Writer do
       end
     end
 
+    it "rejects bare .. as path traversal" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect { writer.add_file(name: "..", source_file_path: source_path) }.to raise_error(
+          MiniTarball::UnsafeNameError,
+          /Path traversal is not allowed/,
+        )
+      end
+    end
+
+    it "rejects Windows absolute paths" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_file(name: "C:\\Windows\\System32\\file.txt", source_file_path: source_path)
+        }.to raise_error(MiniTarball::UnsafeNameError, /Absolute paths are not allowed/)
+
+        expect {
+          writer.add_file(name: "\\\\server\\share\\file.txt", source_file_path: source_path)
+        }.to raise_error(MiniTarball::UnsafeNameError, /Absolute paths are not allowed/)
+      end
+    end
+
+    it "rejects path traversal with backslashes" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_file(name: "foo\\..\\..\\etc\\passwd", source_file_path: source_path)
+        }.to raise_error(MiniTarball::UnsafeNameError, /Path traversal is not allowed/)
+      end
+    end
+
+    it "rejects empty name" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect { writer.add_file(name: "", source_file_path: source_path) }.to raise_error(
+          MiniTarball::UnsafeNameError,
+          /Empty name not allowed/,
+        )
+      end
+    end
+
     it "allows relative paths without traversal" do
       MiniTarball::Writer.use(io) do |writer|
         expect {
@@ -256,6 +294,32 @@ RSpec.describe MiniTarball::Writer do
         expect { writer.add_symlink(name: "link.txt", target: "a" * 100) }.not_to raise_error
       end
     end
+
+    it "rejects absolute target paths" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect { writer.add_symlink(name: "link.txt", target: "/etc/passwd") }.to raise_error(
+          MiniTarball::UnsafeNameError,
+          /Absolute target paths are not allowed/,
+        )
+      end
+    end
+
+    it "rejects Windows absolute target paths" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_symlink(name: "link.txt", target: "C:\\Windows\\System32")
+        }.to raise_error(MiniTarball::UnsafeNameError, /Absolute target paths are not allowed/)
+      end
+    end
+
+    it "allows relative targets with .." do
+      MiniTarball::Writer.use(io) do |writer|
+        # Relative targets with .. are valid (pointing to sibling directories)
+        expect {
+          writer.add_symlink(name: "subdir/link.txt", target: "../sibling/file.txt")
+        }.not_to raise_error
+      end
+    end
   end
 
   describe "#add_hardlink" do
@@ -302,6 +366,23 @@ RSpec.describe MiniTarball::Writer do
         system("tar", "-xf", tar_path, "-C", temp_dir)
         expect(File.exist?(File.join(temp_dir, "link.txt"))).to be true
         expect(File.read(File.join(temp_dir, "link.txt"))).to eq("content")
+      end
+    end
+
+    it "rejects absolute target paths" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect { writer.add_hardlink(name: "link.txt", target: "/etc/passwd") }.to raise_error(
+          MiniTarball::UnsafeNameError,
+          /Absolute target paths are not allowed/,
+        )
+      end
+    end
+
+    it "rejects Windows absolute target paths" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect {
+          writer.add_hardlink(name: "link.txt", target: "C:\\important\\file")
+        }.to raise_error(MiniTarball::UnsafeNameError, /Absolute target paths are not allowed/)
       end
     end
   end

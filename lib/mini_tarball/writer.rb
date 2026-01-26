@@ -139,6 +139,7 @@ module MiniTarball
     )
       ensure_not_closed
       ensure_safe_name(name)
+      ensure_safe_target(target)
 
       @header_writer.write(
         Header.new(
@@ -171,6 +172,7 @@ module MiniTarball
     )
       ensure_not_closed
       ensure_safe_name(name)
+      ensure_safe_target(target)
 
       @header_writer.write(
         Header.new(
@@ -346,11 +348,28 @@ module MiniTarball
     end
 
     private def ensure_safe_name(name)
-      raise UnsafeNameError, "Absolute paths are not allowed: #{name}" if name.start_with?("/")
+      raise UnsafeNameError, "Empty name not allowed" if name.nil? || name.empty?
+      raise UnsafeNameError, "Absolute paths are not allowed: #{name}" if absolute_path?(name)
+      raise UnsafeNameError, "Path traversal is not allowed: #{name}" if path_traversal?(name)
+    end
 
-      if name.start_with?("../") || name.end_with?("/..") || name.include?("/../")
-        raise UnsafeNameError, "Path traversal is not allowed: #{name}"
+    private def ensure_safe_target(target)
+      # Targets can be relative to the entry, so we're more lenient
+      # But reject absolute paths
+      if absolute_path?(target)
+        raise UnsafeNameError, "Absolute target paths are not allowed: #{target}"
       end
+    end
+
+    private def absolute_path?(path)
+      path.start_with?("/") || path.match?(%r{\A[A-Za-z]:[\\/]}) || path.start_with?("\\") # Unix absolute # Windows drive letter # Windows UNC
+    end
+
+    private def path_traversal?(name)
+      # Normalize backslashes for checking
+      normalized = name.tr("\\", "/")
+      normalized == ".." || normalized.start_with?("../") || normalized.end_with?("/..") ||
+        normalized.include?("/../")
     end
 
     private def lookup_username(uid)
