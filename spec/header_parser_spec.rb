@@ -73,12 +73,27 @@ RSpec.describe MiniTarball::HeaderParser do
   end
 
   context "with base-256 encoded size" do
+    # Size field is at offset 124 (100+8+8+8) and is 12 bytes long
+    SIZE_FIELD_OFFSET = 124
+
+    def create_header_with_base256_size(size_bytes)
+      tar_data = create_tar_with_file("hello")
+      header_data = tar_data[0, 512].dup.force_encoding(Encoding::BINARY)
+      header_data[SIZE_FIELD_OFFSET, 12] = size_bytes
+      recalculate_checksum(header_data)
+    end
+
+    def recalculate_checksum(header_data)
+      checksum_offset = 148
+      header_data[checksum_offset, 8] = " " * 8
+      checksum = header_data.bytes.sum
+      header_data[checksum_offset, 8] = format("%06o\0 ", checksum)
+      header_data
+    end
+
     it "parses large file sizes correctly" do
-      # Create a header with base-256 encoded size
-      # This is tested indirectly through the Writer which uses base-256 for large files
       io = StringIO.new.binmode
       MiniTarball::Writer.use(io) do |writer|
-        # Use add_file_from_stream with a large declared size
         writer.add_file_from_stream(name: "big.txt", size: 8_589_934_592) do |s|
           # Don't actually write 8GB, just test the header
         end
@@ -88,6 +103,28 @@ RSpec.describe MiniTarball::HeaderParser do
       values = described_class.parse(header_data)
 
       expect(values[:size]).to eq(8_589_934_592)
+    end
+
+    it "raises InvalidHeaderError for negative base-256 size" do
+      # Negative base-256: bit 7 (marker) and bit 6 (sign) both set = 0xC0+
+      # This represents -1 in base-256 (all 0xFF after the marker)
+      negative_size = (+"\xFF" * 12).force_encoding(Encoding::BINARY)
+      header_data = create_header_with_base256_size(negative_size)
+
+      expect { described_class.parse(header_data) }.to raise_error(
+        MiniTarball::InvalidHeaderError,
+        "Negative base-256 values not supported",
+      )
+    end
+
+    it "parses positive base-256 values with high values correctly" do
+      # Positive base-256: bit 7 set, bit 6 clear = 0x80
+      # This encodes the value 1000 (0x3E8) in base-256
+      positive_size = [0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x03, 0xE8].pack("C*")
+      header_data = create_header_with_base256_size(positive_size)
+      values = described_class.parse(header_data)
+
+      expect(values[:size]).to eq(1000)
     end
   end
 end

@@ -55,17 +55,23 @@ module MiniTarball
       end
 
       def parse_number(raw)
-        return nil if raw.nil? || raw.strip.empty?
+        return nil if raw.nil?
 
         # Check for base-256 encoding (high bit set)
         if raw.getbyte(0) & 0x80 != 0
           parse_base256(raw)
         else
-          raw.strip.to_i(8)
+          stripped = raw.strip
+          stripped.empty? ? nil : stripped.to_i(8)
         end
       end
 
       def parse_base256(raw)
+        # Check sign bit (bit 6 of first byte after marker)
+        if raw.getbyte(0) & 0x40 != 0
+          raise InvalidHeaderError, "Negative base-256 values not supported"
+        end
+
         bytes = raw.bytes
         bytes[0] &= 0x7F # Clear the marker bit
         bytes.inject(0) { |acc, byte| (acc << 8) | byte }
