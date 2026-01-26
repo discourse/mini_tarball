@@ -135,6 +135,65 @@ RSpec.describe MiniTarball::Reader do
 
       expect(result).to be(reader)
     end
+
+    context "with malicious long name/linkname entries" do
+      def create_long_name_header(size:, typeflag:)
+        # Create a valid GNU long name/linkname header
+        header =
+          MiniTarball::Header.new(
+            name: "././@LongLink",
+            mode: 0644,
+            uid: 0,
+            gid: 0,
+            size:,
+            typeflag:,
+            uname: "root",
+            gname: "root",
+          )
+        header.to_binary
+      end
+
+      it "raises error for oversized long name entry" do
+        # Create a tar with a long name entry claiming 100KB size
+        header = create_long_name_header(size: 100_000, typeflag: "L")
+        # Append minimal content and padding (doesn't matter, error raised before reading)
+        tar_data = header + ("x" * 512) + ("\0" * 1024)
+
+        tar_io = StringIO.new(tar_data).binmode
+        expect do described_class.use(tar_io) { |reader| reader.each_entry {} } end.to raise_error(
+          MiniTarball::InvalidHeaderError,
+          "Long name too large",
+        )
+      end
+
+      it "raises error for oversized long linkname entry" do
+        header = create_long_name_header(size: 100_000, typeflag: "K")
+        tar_data = header + ("x" * 512) + ("\0" * 1024)
+
+        tar_io = StringIO.new(tar_data).binmode
+        expect do described_class.use(tar_io) { |reader| reader.each_entry {} } end.to raise_error(
+          MiniTarball::InvalidHeaderError,
+          "Long linkname too large",
+        )
+      end
+
+      it "accepts long name entries within size limit" do
+        # 65535 bytes is at the limit
+        io = StringIO.new.binmode
+        long_name = "a" * 65_000 + ".txt"
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: long_name) { |s| s.write("content") }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        entries = []
+        described_class.use(tar_io) do |reader|
+          reader.each_entry { |entry, _| entries << entry.name }
+        end
+
+        expect(entries).to eq([long_name])
+      end
+    end
   end
 
   describe "#close" do

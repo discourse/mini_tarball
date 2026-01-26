@@ -10,6 +10,10 @@ module MiniTarball
   end
 
   class Reader
+    # Maximum size for long name/linkname entries (64KB)
+    MAX_LONG_NAME_SIZE = 65_535
+    private_constant :MAX_LONG_NAME_SIZE
+
     def self.use(io)
       reader = new(io)
       yield reader
@@ -39,6 +43,7 @@ module MiniTarball
 
         # Handle GNU long linkname (typeflag K) for long symlink/hardlink targets
         if values[:typeflag] == "K"
+          raise InvalidHeaderError, "Long linkname too large" if values[:size] > MAX_LONG_NAME_SIZE
           long_linkname = read_content(values[:size]).delete("\0")
           skip_padding(values[:size])
           next
@@ -46,6 +51,7 @@ module MiniTarball
 
         # Handle GNU long link (typeflag L) for long filenames
         if values[:typeflag] == "L"
+          raise InvalidHeaderError, "Long name too large" if values[:size] > MAX_LONG_NAME_SIZE
           long_name = read_content(values[:size]).delete("\0")
           skip_padding(values[:size])
           next
