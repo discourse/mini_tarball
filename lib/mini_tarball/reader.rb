@@ -9,6 +9,12 @@ module MiniTarball
     end
   end
 
+  class ArchiveLimitError < StandardError
+    def initialize(msg = "Archive limit exceeded")
+      super
+    end
+  end
+
   class Reader
     # Maximum size for long name/linkname entries (64KB)
     MAX_LONG_NAME_SIZE = 65_535
@@ -19,18 +25,40 @@ module MiniTarball
     # Default maximum file size (8GB)
     DEFAULT_MAX_FILE_SIZE = 8_589_934_592
 
-    private_constant :MAX_LONG_NAME_SIZE, :SKIP_CHUNK_SIZE, :DEFAULT_MAX_FILE_SIZE
+    # Default maximum total size (50GB)
+    DEFAULT_MAX_TOTAL_SIZE = 53_687_091_200
 
-    def self.use(io, max_file_size: DEFAULT_MAX_FILE_SIZE)
-      reader = new(io, max_file_size:)
+    # Default maximum entry count (100,000)
+    DEFAULT_MAX_ENTRY_COUNT = 100_000
+
+    private_constant :MAX_LONG_NAME_SIZE,
+                     :SKIP_CHUNK_SIZE,
+                     :DEFAULT_MAX_FILE_SIZE,
+                     :DEFAULT_MAX_TOTAL_SIZE,
+                     :DEFAULT_MAX_ENTRY_COUNT
+
+    def self.use(
+      io,
+      max_file_size: DEFAULT_MAX_FILE_SIZE,
+      max_total_size: DEFAULT_MAX_TOTAL_SIZE,
+      max_entry_count: DEFAULT_MAX_ENTRY_COUNT
+    )
+      reader = new(io, max_file_size:, max_total_size:, max_entry_count:)
       yield reader
     ensure
       reader&.close
     end
 
-    def initialize(io, max_file_size: DEFAULT_MAX_FILE_SIZE)
+    def initialize(
+      io,
+      max_file_size: DEFAULT_MAX_FILE_SIZE,
+      max_total_size: DEFAULT_MAX_TOTAL_SIZE,
+      max_entry_count: DEFAULT_MAX_ENTRY_COUNT
+    )
       @io = io
       @max_file_size = max_file_size
+      @max_total_size = max_total_size
+      @max_entry_count = max_entry_count
       @closed = false
     end
 
@@ -41,6 +69,8 @@ module MiniTarball
 
       long_linkname = nil
       long_name = nil
+      total_size = 0
+      entry_count = 0
 
       loop do
         header_data = @io.read(Header::BLOCK_SIZE)
@@ -74,6 +104,18 @@ module MiniTarball
         # Validate file size
         if values[:size] && values[:size] > @max_file_size
           raise InvalidHeaderError, "File size exceeds maximum (#{@max_file_size} bytes)"
+        end
+
+        # Validate entry count
+        entry_count += 1
+        if entry_count > @max_entry_count
+          raise ArchiveLimitError, "Entry count exceeds maximum (#{@max_entry_count})"
+        end
+
+        # Validate total size
+        total_size += values[:size] || 0
+        if total_size > @max_total_size
+          raise ArchiveLimitError, "Total size exceeds maximum (#{@max_total_size} bytes)"
         end
 
         entry = Entry.new(values)

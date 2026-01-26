@@ -293,6 +293,86 @@ RSpec.describe MiniTarball::Reader do
         expect(entries).to eq(["normal.txt"])
       end
     end
+
+    context "with max_total_size validation" do
+      it "raises error when total size exceeds limit" do
+        io = StringIO.new.binmode
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: "file1.txt") { |s| s.write("a" * 100) }
+          writer.add_file_from_stream(name: "file2.txt") { |s| s.write("b" * 100) }
+          writer.add_file_from_stream(name: "file3.txt") { |s| s.write("c" * 100) }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        # Total is 300 bytes, limit to 250
+        expect do
+          described_class.use(tar_io, max_total_size: 250) { |reader| reader.each_entry {} }
+        end.to raise_error(MiniTarball::ArchiveLimitError, /Total size exceeds maximum/)
+      end
+
+      it "allows archives within total size limit" do
+        io = StringIO.new.binmode
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: "file1.txt") { |s| s.write("a" * 100) }
+          writer.add_file_from_stream(name: "file2.txt") { |s| s.write("b" * 100) }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        entries = []
+        described_class.use(tar_io, max_total_size: 200) do |reader|
+          reader.each_entry { |entry, _| entries << entry.name }
+        end
+
+        expect(entries).to eq(%w[file1.txt file2.txt])
+      end
+    end
+
+    context "with max_entry_count validation" do
+      it "raises error when entry count exceeds limit" do
+        io = StringIO.new.binmode
+        MiniTarball::Writer.use(io) do |writer|
+          5.times { |i| writer.add_file_from_stream(name: "file#{i}.txt") { |s| s.write("x") } }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        expect do
+          described_class.use(tar_io, max_entry_count: 3) { |reader| reader.each_entry {} }
+        end.to raise_error(MiniTarball::ArchiveLimitError, /Entry count exceeds maximum/)
+      end
+
+      it "allows archives within entry count limit" do
+        io = StringIO.new.binmode
+        MiniTarball::Writer.use(io) do |writer|
+          3.times { |i| writer.add_file_from_stream(name: "file#{i}.txt") { |s| s.write("x") } }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        entries = []
+        described_class.use(tar_io, max_entry_count: 3) do |reader|
+          reader.each_entry { |entry, _| entries << entry.name }
+        end
+
+        expect(entries).to eq(%w[file0.txt file1.txt file2.txt])
+      end
+
+      it "does not count long name entries toward limit" do
+        io = StringIO.new.binmode
+        long_name = "a" * 150 + ".txt"
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: long_name) { |s| s.write("content") }
+          writer.add_file_from_stream(name: "short.txt") { |s| s.write("content") }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        entries = []
+        # Long name uses internal ././@LongLink entry, but should only count as 1 user entry
+        described_class.use(tar_io, max_entry_count: 2) do |reader|
+          reader.each_entry { |entry, _| entries << entry.name }
+        end
+
+        expect(entries).to eq([long_name, "short.txt"])
+      end
+    end
   end
 
   describe "#close" do
