@@ -33,8 +33,18 @@ RSpec.describe MiniTarball::HeaderParser do
       expect(described_class.parse(nil)).to be_nil
     end
 
-    it "returns nil for data shorter than block size" do
-      expect(described_class.parse("short")).to be_nil
+    it "raises InvalidHeaderError for truncated header" do
+      expect { described_class.parse("short") }.to raise_error(
+        MiniTarball::InvalidHeaderError,
+        "Truncated header",
+      )
+    end
+
+    it "raises InvalidHeaderError for header just under block size" do
+      expect { described_class.parse("x" * 511) }.to raise_error(
+        MiniTarball::InvalidHeaderError,
+        "Truncated header",
+      )
     end
 
     it "returns nil for end-of-archive marker" do

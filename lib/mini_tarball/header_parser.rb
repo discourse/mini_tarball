@@ -15,7 +15,8 @@ module MiniTarball
 
   class HeaderParser
     def self.parse(binary_data)
-      return nil if binary_data.nil? || binary_data.bytesize < Header::BLOCK_SIZE
+      return nil if binary_data.nil?
+      raise InvalidHeaderError, "Truncated header" if binary_data.bytesize < Header::BLOCK_SIZE
       return nil if end_of_archive?(binary_data)
 
       values = unpack_fields(binary_data)
