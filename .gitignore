@@ -6,6 +6,7 @@
 /pkg/
 /spec/reports/
 /tmp/
+.claude/settings.local.json
 
 # rspec failure tracking
 .rspec_status

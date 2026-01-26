@@ -15,9 +15,18 @@ module MiniTarball
     end
   end
 
+  class TruncatedArchiveError < StandardError
+    def initialize(msg = "Archive is truncated")
+      super
+    end
+  end
+
   class Reader
     # Maximum size for long name/linkname entries (64KB)
     MAX_LONG_NAME_SIZE = 65_535
+
+    # Maximum number of internal headers (long name/linkname) to prevent DoS
+    MAX_INTERNAL_HEADERS = 200_000
 
     # Chunk size for skipping content (64KB)
     SKIP_CHUNK_SIZE = 65_536
@@ -32,6 +41,7 @@ module MiniTarball
     DEFAULT_MAX_ENTRY_COUNT = 100_000
 
     private_constant :MAX_LONG_NAME_SIZE,
+                     :MAX_INTERNAL_HEADERS,
                      :SKIP_CHUNK_SIZE,
                      :DEFAULT_MAX_FILE_SIZE,
                      :DEFAULT_MAX_TOTAL_SIZE,
@@ -71,6 +81,7 @@ module MiniTarball
       long_name = nil
       total_size = 0
       entry_count = 0
+      internal_header_count = 0
 
       loop do
         header_data = @io.read(Header::BLOCK_SIZE)
@@ -82,6 +93,14 @@ module MiniTarball
         # Handle GNU long linkname (typeflag K) for long symlink/hardlink targets
         if values[:typeflag] == "K"
           raise InvalidHeaderError, "Long linkname too large" if values[:size] > MAX_LONG_NAME_SIZE
+          internal_header_count += 1
+          if internal_header_count > MAX_INTERNAL_HEADERS
+            raise ArchiveLimitError, "Too many internal headers"
+          end
+          total_size += values[:size]
+          if total_size > @max_total_size
+            raise ArchiveLimitError, "Total size exceeds maximum (#{@max_total_size} bytes)"
+          end
           long_linkname = read_content(values[:size]).delete("\0")
           skip_padding(values[:size])
           next
@@ -90,6 +109,14 @@ module MiniTarball
         # Handle GNU long link (typeflag L) for long filenames
         if values[:typeflag] == "L"
           raise InvalidHeaderError, "Long name too large" if values[:size] > MAX_LONG_NAME_SIZE
+          internal_header_count += 1
+          if internal_header_count > MAX_INTERNAL_HEADERS
+            raise ArchiveLimitError, "Too many internal headers"
+          end
+          total_size += values[:size]
+          if total_size > @max_total_size
+            raise ArchiveLimitError, "Total size exceeds maximum (#{@max_total_size} bytes)"
+          end
           long_name = read_content(values[:size]).delete("\0")
           skip_padding(values[:size])
           next
@@ -173,26 +200,33 @@ module MiniTarball
     end
 
     def read_content(size)
-      @io.read(size)
+      data = @io.read(size)
+      raise TruncatedArchiveError, "Unexpected end of archive" if data.nil? || data.bytesize < size
+      data
     end
 
     def skip_remaining(bytes)
       while bytes > 0
         chunk = [bytes, SKIP_CHUNK_SIZE].min
-        @io.read(chunk)
-        bytes -= chunk
+        data = @io.read(chunk)
+        raise TruncatedArchiveError, "Unexpected end of archive" if data.nil?
+        bytes -= data.bytesize
       end
     end
 
     def skip_padding(content_size)
       padding = (Header::BLOCK_SIZE - (content_size % Header::BLOCK_SIZE)) % Header::BLOCK_SIZE
-      @io.read(padding) if padding > 0
+      return if padding == 0
+
+      data = @io.read(padding)
+      raise TruncatedArchiveError, "Unexpected end of archive" if data.nil? || data.bytesize < padding
     end
 
     def extract_entry(entry, stream, destination)
       target_path = safe_path(entry.name, destination)
 
       if entry.directory?
+        ensure_not_symlink_target(target_path)
         FileUtils.mkdir_p(target_path)
       elsif entry.symlink?
         validate_symlink_target(entry.linkname, destination, target_path)
@@ -200,9 +234,12 @@ module MiniTarball
         File.symlink(entry.linkname, target_path)
       elsif entry.hardlink?
         link_target = safe_path(entry.linkname, destination)
+        ensure_not_symlink_target(target_path)
+        ensure_not_symlink_target(link_target)
         FileUtils.mkdir_p(File.dirname(target_path))
         File.link(link_target, target_path)
       elsif entry.file?
+        ensure_not_symlink_target(target_path)
         FileUtils.mkdir_p(File.dirname(target_path))
         File.open(target_path, "wb") { |f| IO.copy_stream(stream, f) }
         File.chmod(entry.mode, target_path) if entry.mode
@@ -212,15 +249,14 @@ module MiniTarball
     def safe_path(name, destination)
       # Remove leading slashes and resolve the path
       clean_name = name.sub(%r{^/+}, "")
-      full_path = File.expand_path(File.join(destination, clean_name))
+      full_path = normalize_path(File.expand_path(File.join(destination, clean_name)))
+      normalized_dest = normalize_path(destination)
 
       # Ensure the resolved path is within destination
-      unless full_path.start_with?(destination + "/") || full_path == destination
-        raise PathTraversalError
-      end
+      raise PathTraversalError unless path_within?(full_path, normalized_dest)
 
       # Verify no symlinks in existing path components could escape
-      validate_path_components(full_path, destination)
+      validate_path_components(full_path, normalized_dest)
 
       full_path
     end
@@ -236,8 +272,8 @@ module MiniTarball
         next unless File.symlink?(path)
 
         # Resolve symlink and verify it stays within destination
-        resolved = File.realpath(path)
-        unless resolved.start_with?(destination + "/") || resolved == destination
+        resolved = normalize_path(File.realpath(path))
+        unless path_within?(resolved, destination)
           raise PathTraversalError, "Symlink in path escapes destination"
         end
       end
@@ -252,11 +288,25 @@ module MiniTarball
         raise PathTraversalError
       else
         # Relative symlink - check where it resolves
-        resolved = File.expand_path(target, File.dirname(link_path))
-        unless resolved.start_with?(destination + "/") || resolved == destination
-          raise PathTraversalError
-        end
+        resolved = normalize_path(File.expand_path(target, File.dirname(link_path)))
+        raise PathTraversalError unless path_within?(resolved, destination)
       end
+    end
+
+    def ensure_not_symlink_target(path)
+      return unless File.symlink?(path)
+
+      raise PathTraversalError, "Symlink at destination path"
+    end
+
+    # Normalize path separators to forward slashes for consistent comparison
+    def normalize_path(path)
+      path.tr("\\", "/")
+    end
+
+    # Check if path is within or equal to destination
+    def path_within?(path, destination)
+      path == destination || path.start_with?(destination + "/")
     end
   end
 end

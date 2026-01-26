@@ -117,6 +117,19 @@ RSpec.describe MiniTarball::HeaderParser do
       )
     end
 
+    it "raises InvalidHeaderError for negative octal size" do
+      tar_data = create_tar_with_file("hello")
+      header_data = tar_data[0, 512].dup.force_encoding(Encoding::BINARY)
+      # Size field at offset 124, write "-1" in octal format
+      header_data[SIZE_FIELD_OFFSET, 12] = "-1".ljust(12, "\0")
+      header_data = recalculate_checksum(header_data)
+
+      expect { described_class.parse(header_data) }.to raise_error(
+        MiniTarball::InvalidHeaderError,
+        "Negative octal values not supported",
+      )
+    end
+
     it "parses positive base-256 values with high values correctly" do
       # Positive base-256: bit 7 set, bit 6 clear = 0x80
       # This encodes the value 1000 (0x3E8) in base-256

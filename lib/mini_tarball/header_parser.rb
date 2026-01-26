@@ -62,7 +62,14 @@ module MiniTarball
           parse_base256(raw)
         else
           stripped = raw.strip
-          stripped.empty? ? nil : stripped.to_i(8)
+          return nil if stripped.empty?
+
+          # Reject negative octal values
+          if stripped.start_with?("-")
+            raise InvalidHeaderError, "Negative octal values not supported"
+          end
+
+          stripped.to_i(8)
         end
       end
 

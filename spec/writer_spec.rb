@@ -320,6 +320,24 @@ RSpec.describe MiniTarball::Writer do
         }.not_to raise_error
       end
     end
+
+    it "rejects nil target" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect { writer.add_symlink(name: "link.txt", target: nil) }.to raise_error(
+          MiniTarball::UnsafeNameError,
+          /Empty target not allowed/,
+        )
+      end
+    end
+
+    it "rejects empty target" do
+      MiniTarball::Writer.use(io) do |writer|
+        expect { writer.add_symlink(name: "link.txt", target: "") }.to raise_error(
+          MiniTarball::UnsafeNameError,
+          /Empty target not allowed/,
+        )
+      end
+    end
   end
 
   describe "#add_hardlink" do

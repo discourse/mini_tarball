@@ -271,6 +271,34 @@ RSpec.describe MiniTarball::Reader do
 
         expect(entries).to eq([long_name])
       end
+
+      it "raises TruncatedArchiveError for truncated long name content" do
+        # Create a long name header claiming 200 bytes but only provide 50
+        header = create_long_name_header(size: 200, typeflag: "L")
+        tar_data = header + ("x" * 50) # Truncated - only 50 bytes instead of 200
+
+        tar_io = StringIO.new(tar_data).binmode
+        expect do described_class.use(tar_io) { |reader| reader.each_entry {} } end.to raise_error(
+          MiniTarball::TruncatedArchiveError,
+          /Unexpected end of archive/,
+        )
+      end
+
+      it "raises TruncatedArchiveError when padding is missing" do
+        io = StringIO.new.binmode
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: "one.txt") { |s| s.write("a") }
+        end
+
+        # Truncate to header + 1 byte, omitting padding and end-of-archive
+        truncated = io.string[0, 513]
+        tar_io = StringIO.new(truncated).binmode
+
+        expect do described_class.use(tar_io) { |reader| reader.each_entry {} } end.to raise_error(
+          MiniTarball::TruncatedArchiveError,
+          /Unexpected end of archive/,
+        )
+      end
     end
 
     context "with chunked skipping" do
@@ -639,6 +667,26 @@ RSpec.describe MiniTarball::Reader do
         described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
 
         expect(File.read(File.join(tmpdir, "a/b/c/d/deep.txt"))).to eq("deep")
+      end
+
+      it "rejects extraction when the target path is an existing symlink" do
+        outside_dir = Dir.mktmpdir
+        begin
+          symlink_path = File.join(tmpdir, "leaf")
+          File.symlink(outside_dir, symlink_path)
+
+          io = StringIO.new.binmode
+          MiniTarball::Writer.use(io) do |writer|
+            writer.add_file_from_stream(name: "leaf") { |s| s.write("pwned") }
+          end
+
+          tar_io = StringIO.new(io.string).binmode
+          expect do
+            described_class.use(tar_io) { |reader| reader.extract_all(tmpdir) }
+          end.to raise_error(MiniTarball::PathTraversalError, /Symlink at destination path/)
+        ensure
+          FileUtils.rm_rf(outside_dir)
+        end
       end
     end
 

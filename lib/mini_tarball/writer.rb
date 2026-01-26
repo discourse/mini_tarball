@@ -192,6 +192,27 @@ module MiniTarball
       self
     end
 
+    # Adds a file by streaming content from a block.
+    #
+    # @param name [String] The filename in the archive
+    # @param size [Integer, nil] Expected content size. Required for non-seekable IO (e.g., gzip).
+    #   If omitted, the IO must be seekable so the size can be determined after writing.
+    #
+    # @note When +size+ is provided, it MUST match the actual bytes written. If fewer bytes
+    #   are written, the remainder is filled with NUL bytes. When the archive is later read
+    #   or extracted, the declared size is used - there is no way to distinguish padding from
+    #   intentional content. This affects both streaming (e.g., S3 uploads include the padding)
+    #   and disk extraction (extracted files will have the declared size, not actual content size).
+    #
+    # @example With seekable IO (size determined automatically)
+    #   writer.add_file_from_stream(name: "test.txt") { |s| s.write("hello") }
+    #
+    # @example With non-seekable IO (gzip) - size must be exact
+    #   content = "hello"
+    #   writer.add_file_from_stream(name: "test.txt", size: content.bytesize) do |s|
+    #     s.write(content)
+    #   end
+    #
     # :reek:ControlParameter
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
     # :reek:LongParameterList
@@ -230,6 +251,16 @@ module MiniTarball
       self
     end
 
+    # Reserves space for a file to be filled later via Placeholder#fill.
+    # Useful when file content isn't available yet but position in archive matters.
+    #
+    # @param name [String] The filename in the archive
+    # @param size [Integer] Reserved size in bytes
+    # @return [Placeholder] A placeholder that can be filled later
+    #
+    # @note The +size+ declares the maximum content. If less is written when filling,
+    #   the remainder stays as NUL bytes. See {#add_file_from_stream} for implications.
+    #
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
     def add_file_placeholder(name:, size:)
       ensure_not_closed
@@ -354,6 +385,7 @@ module MiniTarball
     end
 
     private def ensure_safe_target(target)
+      raise UnsafeNameError, "Empty target not allowed" if target.nil? || target.empty?
       # Targets can be relative to the entry, so we're more lenient
       # But reject absolute paths
       if absolute_path?(target)
