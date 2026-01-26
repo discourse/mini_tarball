@@ -61,4 +61,38 @@ RSpec.describe MiniTarball::BoundedReadStream do
       expect(stream.remaining).to eq(7)
     end
   end
+
+  describe "#size" do
+    it "returns the total size" do
+      stream = described_class.new(io, size: 10)
+      expect(stream.size).to eq(10)
+    end
+
+    it "remains constant after reads" do
+      stream = described_class.new(io, size: 10)
+      stream.read(5)
+      expect(stream.size).to eq(10)
+    end
+  end
+
+  describe "#pos" do
+    it "returns 0 before any reads" do
+      stream = described_class.new(io, size: 10)
+      expect(stream.pos).to eq(0)
+    end
+
+    it "returns bytes read so far" do
+      stream = described_class.new(io, size: 10)
+      stream.read(3)
+      expect(stream.pos).to eq(3)
+      stream.read(4)
+      expect(stream.pos).to eq(7)
+    end
+
+    it "is aliased as tell" do
+      stream = described_class.new(io, size: 10)
+      stream.read(5)
+      expect(stream.tell).to eq(5)
+    end
+  end
 end

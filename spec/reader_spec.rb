@@ -135,7 +135,85 @@ RSpec.describe MiniTarball::Reader do
 
       expect(result).to be(reader)
     end
+  end
 
+  describe "#each_file" do
+    it "iterates over file entries only" do
+      io = StringIO.new.binmode
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_directory(name: "subdir")
+        writer.add_file_from_stream(name: "file1.txt") { |s| s.write("content1") }
+        writer.add_symlink(name: "link.txt", target: "file1.txt")
+        writer.add_file_from_stream(name: "file2.txt") { |s| s.write("content2") }
+      end
+
+      tar_io = StringIO.new(io.string).binmode
+      files = []
+
+      described_class.use(tar_io) { |reader| reader.each_file { |entry, _| files << entry.name } }
+
+      expect(files).to eq(%w[file1.txt file2.txt])
+    end
+
+    it "provides working content streams" do
+      io = StringIO.new.binmode
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_directory(name: "dir")
+        writer.add_file_from_stream(name: "test.txt") { |s| s.write("hello") }
+      end
+
+      tar_io = StringIO.new(io.string).binmode
+      content = nil
+
+      described_class.use(tar_io) do |reader|
+        reader.each_file { |_, stream| content = stream.read }
+      end
+
+      expect(content).to eq("hello")
+    end
+
+    it "returns an enumerator without block" do
+      tar_io = create_tar
+      reader = described_class.new(tar_io)
+
+      enum = reader.each_file
+      expect(enum).to be_a(Enumerator)
+
+      entry, stream = enum.next
+      expect(entry.name).to eq("hello.txt")
+      expect(entry.file?).to be true
+    end
+
+    it "returns self for chaining" do
+      tar_io = create_tar
+      reader = described_class.new(tar_io)
+
+      result = reader.each_file {}
+
+      expect(result).to be(reader)
+    end
+
+    it "exposes stream size and position for upload SDKs" do
+      io = StringIO.new.binmode
+      MiniTarball::Writer.use(io) do |writer|
+        writer.add_file_from_stream(name: "test.txt") { |s| s.write("hello world") }
+      end
+
+      tar_io = StringIO.new(io.string).binmode
+      stream_info = nil
+
+      described_class.use(tar_io) do |reader|
+        reader.each_file do |_, stream|
+          stream.read(5)
+          stream_info = { size: stream.size, pos: stream.pos, remaining: stream.remaining }
+        end
+      end
+
+      expect(stream_info).to eq({ size: 11, pos: 5, remaining: 6 })
+    end
+  end
+
+  describe "#each_entry" do
     context "with malicious long name/linkname entries" do
       def create_long_name_header(size:, typeflag:)
         # Create a valid GNU long name/linkname header

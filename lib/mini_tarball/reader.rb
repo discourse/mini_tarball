@@ -130,6 +130,28 @@ module MiniTarball
       self
     end
 
+    # Iterates over regular file entries only, skipping directories and links.
+    # Convenient for streaming file contents without filesystem extraction.
+    #
+    # @example Streaming files to S3
+    #   Reader.use(tar_io) do |reader|
+    #     reader.each_file do |entry, stream|
+    #       s3.put_object(bucket: "bucket", key: entry.name, body: stream)
+    #     end
+    #   end
+    #
+    # @yield [entry, stream] Yields each file entry and its content stream
+    # @yieldparam entry [Entry] The file entry metadata
+    # @yieldparam stream [BoundedReadStream] The file content stream
+    # @return [Enumerator, self] Returns Enumerator if no block given, self otherwise
+    def each_file
+      return enum_for(:each_file) unless block_given?
+
+      each_entry { |entry, stream| yield entry, stream if entry.file? }
+
+      self
+    end
+
     def extract_all(destination)
       destination = File.expand_path(destination)
       FileUtils.mkdir_p(destination)
