@@ -12,7 +12,11 @@ module MiniTarball
   class Reader
     # Maximum size for long name/linkname entries (64KB)
     MAX_LONG_NAME_SIZE = 65_535
-    private_constant :MAX_LONG_NAME_SIZE
+
+    # Chunk size for skipping content (64KB)
+    SKIP_CHUNK_SIZE = 65_536
+
+    private_constant :MAX_LONG_NAME_SIZE, :SKIP_CHUNK_SIZE
 
     def self.use(io)
       reader = new(io)
@@ -100,7 +104,11 @@ module MiniTarball
     end
 
     def skip_remaining(bytes)
-      @io.read(bytes) if bytes > 0
+      while bytes > 0
+        chunk = [bytes, SKIP_CHUNK_SIZE].min
+        @io.read(chunk)
+        bytes -= chunk
+      end
     end
 
     def skip_padding(content_size)

@@ -194,6 +194,33 @@ RSpec.describe MiniTarball::Reader do
         expect(entries).to eq([long_name])
       end
     end
+
+    context "with chunked skipping" do
+      it "correctly skips large unread content between entries" do
+        io = StringIO.new.binmode
+        # Create a file with content larger than skip chunk size (64KB)
+        large_content = "x" * 100_000
+        MiniTarball::Writer.use(io) do |writer|
+          writer.add_file_from_stream(name: "large.txt") { |s| s.write(large_content) }
+          writer.add_file_from_stream(name: "small.txt") { |s| s.write("small") }
+        end
+
+        tar_io = StringIO.new(io.string).binmode
+        entries = []
+        contents = {}
+
+        described_class.use(tar_io) do |reader|
+          reader.each_entry do |entry, stream|
+            entries << entry.name
+            # Only read the second file's content, skip the first
+            contents[entry.name] = stream.read if entry.name == "small.txt"
+          end
+        end
+
+        expect(entries).to eq(%w[large.txt small.txt])
+        expect(contents["small.txt"]).to eq("small")
+      end
+    end
   end
 
   describe "#close" do
