@@ -106,23 +106,25 @@ Here are some examples:
 |gid|`nil`|Group ID of file owner|
 |mtime|`Time.now.utc`|Modification time|
 
-#### Add placeholder
+#### Reserve and fill placeholders
 Placeholders allow you to reserve space for a file within the tar. That's quite useful when you want to store a file at the beginning of the archive, but don't know the file content until you have added other files to the archive.
 
 You don't need to know the exact size of the file when you add the placeholder. The writer will fill unused space with ␀ characters if the actual file is smaller than the reserved `size`. Adding a file that is larger than `size` will raise `MiniTarball::WriteOutOfRangeError`.
 
+All reservations must be filled before closing the writer. Otherwise, `MiniTarball::UnfilledPlaceholderError` is raised.
+
 ``` ruby
-placeholder1 = writer.add_file_placeholder(name: "file1.txt", size: 3925)
-placeholder2 = writer.add_file_placeholder(name: "file2.txt", size: 1950)
+placeholder1 = writer.reserve(name: "file1.txt", size: 3925)
+placeholder2 = writer.reserve(name: "file2.txt", size: 1950)
 # add more files...
 
 # fill placeholder 1
-placeholder1.fill do |w|
+writer.fill(placeholder1) do |w|
   w.add_file(name: "file1.txt", source_file_path: "/home/foo/file1.txt")
 end
 
 # fill placeholder 2
-placeholder2.fill do |w|
+writer.fill(placeholder2) do |w|
   File.open("/home/foo/file9.txt", "rb") do |input_stream|
     w.add_file_from_stream(name: "file9.txt") do |output_stream|
       IO.copy_stream(input_stream, output_stream)

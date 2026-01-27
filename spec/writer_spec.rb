@@ -425,10 +425,10 @@ RSpec.describe MiniTarball::Writer do
     end
   end
 
-  describe "#add_file_placeholder" do
+  describe "#reserve" do
     it "rejects absolute paths" do
       MiniTarball::Writer.use(io) do |writer|
-        expect { writer.add_file_placeholder(name: "/etc/passwd", size: 100) }.to raise_error(
+        expect { writer.reserve(name: "/etc/passwd", size: 100) }.to raise_error(
           MiniTarball::UnsafeNameError,
           /Absolute paths are not allowed/,
         )
@@ -437,7 +437,7 @@ RSpec.describe MiniTarball::Writer do
 
     it "rejects path traversal" do
       MiniTarball::Writer.use(io) do |writer|
-        expect { writer.add_file_placeholder(name: "foo/../../passwd", size: 100) }.to raise_error(
+        expect { writer.reserve(name: "foo/../../passwd", size: 100) }.to raise_error(
           MiniTarball::UnsafeNameError,
           /Path traversal is not allowed/,
         )
@@ -445,17 +445,17 @@ RSpec.describe MiniTarball::Writer do
     end
   end
 
-  describe "Placeholder#fill" do
+  describe "#fill" do
     it "adds file at the beginning of tar file" do
       MiniTarball::Writer.use(io) do |writer|
         placeholder =
-          writer.add_file_placeholder(
+          writer.reserve(
             name: "file1.txt",
             size: File.size(fixture_path("files/file1.txt")),
           )
         add_files_from_stream(writer, %w[file2.txt file3.txt])
 
-        placeholder.fill { |w| add_files_from_stream(w, %w[file1.txt]) }
+        writer.fill(placeholder) { |w| add_files_from_stream(w, %w[file1.txt]) }
       end
 
       expect(io.string).to eq(fixture("archives/multiple_files.tar"))
@@ -465,13 +465,13 @@ RSpec.describe MiniTarball::Writer do
       MiniTarball::Writer.use(io) do |writer|
         add_files_from_stream(writer, %w[file1.txt])
         placeholder =
-          writer.add_file_placeholder(
+          writer.reserve(
             name: "file2.txt",
             size: File.size(fixture_path("files/file2.txt")),
           )
         add_files_from_stream(writer, %w[file3.txt])
 
-        placeholder.fill { |w| add_files_from_stream(w, %w[file2.txt]) }
+        writer.fill(placeholder) { |w| add_files_from_stream(w, %w[file2.txt]) }
       end
 
       expect(io.string).to eq(fixture("archives/multiple_files.tar"))
@@ -481,18 +481,18 @@ RSpec.describe MiniTarball::Writer do
       MiniTarball::Writer.use(io) do |writer|
         add_files(writer, %w[file1.txt])
         placeholder2 =
-          writer.add_file_placeholder(
+          writer.reserve(
             name: "file2.txt",
             size: File.size(fixture_path("files/file2.txt")),
           )
         placeholder3 =
-          writer.add_file_placeholder(
+          writer.reserve(
             name: "file3.txt",
             size: File.size(fixture_path("files/file3.txt")),
           )
 
-        placeholder2.fill { |w| add_files(w, %w[file2.txt]) }
-        placeholder3.fill { |w| add_files(w, %w[file3.txt]) }
+        writer.fill(placeholder2) { |w| add_files(w, %w[file2.txt]) }
+        writer.fill(placeholder3) { |w| add_files(w, %w[file3.txt]) }
       end
 
       with_temp_tar(%w[file1.txt file2.txt file3.txt]) { |tar| expect(io.string).to eq(tar) }
@@ -501,12 +501,12 @@ RSpec.describe MiniTarball::Writer do
     it "supports adding a file that is smaller than the placeholder" do
       MiniTarball::Writer.use(io) do |writer|
         placeholder =
-          writer.add_file_placeholder(
+          writer.reserve(
             name: "file1.txt",
             size: File.size(fixture_path("files/file1.txt")) + 1492,
           )
 
-        placeholder.fill { |w| add_files_from_stream(w, %w[file1.txt]) }
+        writer.fill(placeholder) { |w| add_files_from_stream(w, %w[file1.txt]) }
 
         add_files_from_stream(writer, %w[file2.txt])
       end
@@ -517,12 +517,12 @@ RSpec.describe MiniTarball::Writer do
     it "raises an error if the file is larger than the placeholder" do
       MiniTarball::Writer.use(io) do |writer|
         placeholder =
-          writer.add_file_placeholder(
+          writer.reserve(
             name: "file1.txt",
             size: File.size(fixture_path("files/file1.txt")) - 100,
           )
 
-        placeholder.fill do |w|
+        writer.fill(placeholder) do |w|
           expect { add_files_from_stream(w, %w[file1.txt]) }.to raise_error(
             MiniTarball::WriteOutOfRangeError,
           )
@@ -535,26 +535,26 @@ RSpec.describe MiniTarball::Writer do
 
       MiniTarball::Writer.use(gzip) do |writer|
         placeholder =
-          writer.add_file_placeholder(
+          writer.reserve(
             name: "file1.txt",
             size: File.size(fixture_path("files/file1.txt")),
           )
 
-        expect { placeholder.fill {} }.to raise_error(MiniTarball::NotSeekableError)
+        expect { writer.fill(placeholder) {} }.to raise_error(MiniTarball::NotSeekableError)
       end
     end
 
     it "supports filling placeholders in any order" do
       MiniTarball::Writer.use(io) do |writer|
-        placeholder1 = writer.add_file_placeholder(name: "file1.txt", size: 100)
-        placeholder2 = writer.add_file_placeholder(name: "file2.txt", size: 100)
+        placeholder1 = writer.reserve(name: "file1.txt", size: 100)
+        placeholder2 = writer.reserve(name: "file2.txt", size: 100)
 
         # Fill placeholder2 first, then placeholder1
-        placeholder2.fill do |w|
+        writer.fill(placeholder2) do |w|
           w.add_file_from_stream(name: "file2.txt", **default_options) { |s| s.write("content2") }
         end
 
-        placeholder1.fill do |w|
+        writer.fill(placeholder1) do |w|
           w.add_file_from_stream(name: "file1.txt", **default_options) { |s| s.write("content1") }
         end
       end
@@ -564,21 +564,21 @@ RSpec.describe MiniTarball::Writer do
 
     it "raises an error if placeholder is filled twice" do
       MiniTarball::Writer.use(io) do |writer|
-        placeholder = writer.add_file_placeholder(name: "file1.txt", size: 100)
+        placeholder = writer.reserve(name: "file1.txt", size: 100)
 
-        placeholder.fill do |w|
+        writer.fill(placeholder) do |w|
           w.add_file_from_stream(name: "file1.txt", **default_options) { |s| s.write("content") }
         end
 
-        expect { placeholder.fill {} }.to raise_error(ArgumentError, /already filled/)
+        expect { writer.fill(placeholder) {} }.to raise_error(ArgumentError, /already filled/)
       end
     end
 
     it "returns the writer for chaining" do
       MiniTarball::Writer.use(io) do |writer|
-        placeholder = writer.add_file_placeholder(name: "file1.txt", size: 100)
+        placeholder = writer.reserve(name: "file1.txt", size: 100)
         result =
-          placeholder.fill do |w|
+          writer.fill(placeholder) do |w|
             w.add_file_from_stream(name: "f.txt", **default_options) { |s| s.write("x") }
           end
         expect(result).to eq(writer)
@@ -604,6 +604,14 @@ RSpec.describe MiniTarball::Writer do
       writer.close
 
       expect { writer.close }.to raise_error(IOError)
+    end
+
+    it "raises an error when placeholders are not filled" do
+      writer = MiniTarball::Writer.new(io)
+      writer.reserve(name: "file1.txt", size: 100)
+
+      expect { writer.close }.to raise_error(MiniTarball::UnfilledPlaceholderError)
+      expect(writer.closed?).to eq(true)
     end
   end
 

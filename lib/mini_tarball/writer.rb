@@ -24,6 +24,12 @@ module MiniTarball
     end
   end
 
+  class UnfilledPlaceholderError < StandardError
+    def initialize(msg = "Unfilled placeholders remain")
+      super
+    end
+  end
+
   class Writer
     END_OF_TAR_BLOCK_SIZE = 1024
     NULL_BLOCK = ("\0" * END_OF_TAR_BLOCK_SIZE).freeze
@@ -60,6 +66,8 @@ module MiniTarball
       @write_only_io = WriteOnlyStream.new(@io)
       @header_writer = HeaderWriter.new(@write_only_io)
       @closed = false
+      @writer_id = Object.new
+      @placeholders = {}
     end
 
     # :reek:ControlParameter
@@ -198,6 +206,27 @@ module MiniTarball
       self
     end
 
+    # Adds a file by streaming content from a block.
+    #
+    # @param name [String] The filename in the archive
+    # @param size [Integer, nil] Expected content size. Required for non-seekable IO (e.g., gzip).
+    #   If omitted, the IO must be seekable so the size can be determined after writing.
+    #
+    # @note When +size+ is provided, it MUST match the actual bytes written. If fewer bytes
+    #   are written, the remainder is filled with NUL bytes. When the archive is later read
+    #   or extracted, the declared size is used - there is no way to distinguish padding from
+    #   intentional content. This affects both streaming (e.g., S3 uploads include the padding)
+    #   and disk extraction (extracted files will have the declared size, not actual content size).
+    #
+    # @example With seekable IO (size determined automatically)
+    #   writer.add_file_from_stream(name: "test.txt") { |s| s.write("hello") }
+    #
+    # @example With non-seekable IO (gzip) - size must be exact
+    #   content = "hello"
+    #   writer.add_file_from_stream(name: "test.txt", size: content.bytesize) do |s|
+    #     s.write(content)
+    #   end
+    #
     # :reek:ControlParameter
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
     # :reek:LongParameterList
@@ -236,8 +265,20 @@ module MiniTarball
       self
     end
 
+    # Reserves space for a file to be filled later.
+    # Useful when file content isn't available yet but position in archive matters.
+    #
+    # @param name [String] The filename in the archive
+    # @param size [Integer] Reserved size in bytes
+    # @return [PlaceholderRef] A data object representing the reservation
+    #
+    # @note The +size+ declares the maximum content. If less is written when filling,
+    #   the remainder stays as NUL bytes. See {#add_file_from_stream} for implications.
+    #
+    # @note All reservations must be filled before closing the writer.
+    #
     # :reek:DuplicateMethodCall { allow_calls: ['@io.pos'] }
-    def add_file_placeholder(name:, size:)
+    def reserve(name:, size:)
       ensure_not_closed
       ensure_safe_name(name)
 
@@ -249,12 +290,28 @@ module MiniTarball
 
       write_padding
 
-      Placeholder.new(writer: self, header_start_position:, file_start_position:, size:)
+      placeholder =
+        PlaceholderRef.new(
+          header_start_position:,
+          file_start_position:,
+          size:,
+          writer_id: @writer_id,
+        )
+      @placeholders[placeholder] = :unfilled
+      placeholder
+    end
+
+    def fill(placeholder, &block)
+      ensure_not_closed
+      ensure_seekable_io
+      validate_placeholder!(placeholder)
+
+      fill_placeholder(placeholder, &block)
+      @placeholders[placeholder] = :filled
+      self
     end
 
     private def fill_placeholder(placeholder)
-      ensure_seekable_io
-
       @io.seek(placeholder.header_start_position)
       old_write_only_io = @write_only_io
       @write_only_io =
@@ -326,6 +383,7 @@ module MiniTarball
 
     def close
       ensure_not_closed
+      ensure_all_placeholders_filled!
 
       @io.write(NULL_BLOCK)
       @io.close
@@ -359,6 +417,25 @@ module MiniTarball
       if name.start_with?("../") || name.end_with?("/..") || name.include?("/../")
         raise UnsafeNameError, "Path traversal is not allowed: #{name}"
       end
+    end
+
+    private def validate_placeholder!(placeholder)
+      state = @placeholders[placeholder]
+      raise ArgumentError, "Unknown placeholder" if state.nil?
+      raise ArgumentError, "Placeholder already filled" if state == :filled
+
+      unless placeholder.writer_id == @writer_id
+        raise ArgumentError, "Placeholder belongs to another writer"
+      end
+    end
+
+    private def ensure_all_placeholders_filled!
+      unfilled = @placeholders.values.include?(:unfilled)
+      return unless unfilled
+
+      @io.close
+      @closed = true
+      raise UnfilledPlaceholderError
     end
 
     private def ensure_valid_link_target(target)
