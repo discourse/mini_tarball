@@ -1,17 +1,24 @@
 # frozen_string_literal: true
 
 module MiniTarball
+  # A stream for writing placeholder content with automatic null-padding.
+  # Fills any remaining space in the region with null bytes after each write.
+  #
+  # @api private
   class PlaceholderStream < LimitedSizeStream
-    def initialize(io, start_position:, file_size:)
-      super(io, start_position:, max_file_size: file_size)
-    end
-
+    # Writes data and pads remaining space with null bytes.
+    #
+    # @param data [String] data to write
+    # @return [Integer] number of bytes written (excluding padding)
+    # @raise [WriteOutOfRangeError] if write would exceed the allowed region
     def write(data)
-      super(data)
+      written = super(data)
 
-      if (current_position = io.pos) <= end_position
-        io.write("\0" * (end_position - current_position))
-      end
+      current_position = io.pos
+      remaining = end_position - current_position
+      io.write("\0" * remaining) if remaining > 0
+
+      written
     end
   end
 end

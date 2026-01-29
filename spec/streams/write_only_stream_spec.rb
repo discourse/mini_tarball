@@ -9,8 +9,13 @@ RSpec.describe MiniTarball::WriteOnlyStream do
     expect(wrapped_io.string).to eq("Hello world!")
   end
 
-  it "doesn't implement any methods except for 'write'" do
+  it "supports << operator for chaining" do
+    io << "Hello" << " " << "world!"
+    expect(wrapped_io.string).to eq("Hello world!")
+  end
+
+  it "only exposes write and << methods" do
     methods = io.public_methods - Object.public_methods
-    expect(methods).to contain_exactly(:write)
+    expect(methods).to contain_exactly(:write, :<<)
   end
 end

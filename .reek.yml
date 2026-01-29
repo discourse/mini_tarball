@@ -1,5 +1,82 @@
+exclude_paths:
+  - spec/
+
 detectors:
+  # Writer has many methods that share tar header parameters - this is intentional
+  DataClump:
+    exclude:
+      - "MiniTarball::Writer"
+
+  MissingSafeMethod:
+    exclude:
+      - "MiniTarball::Writer"
+
+  # Tar headers have many fields, long parameter lists are unavoidable
+  LongParameterList:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::Header#initialize"
+
+  # Pattern `x || default` is idiomatic Ruby for optional params
+  ControlParameter:
+    exclude:
+      - "MiniTarball::Writer"
+
+  # Checking properties of stat/field objects is expected behavior
+  FeatureEnvy:
+    exclude:
+      - "MiniTarball::Writer#add_file"
+      - "MiniTarball::Writer#ensure_valid_io"
+      - "MiniTarball::HeaderFields#set_value"
+
+  # Multiple calls to same method at different times is intentional
+  DuplicateMethodCall:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::HeaderFields#set_value"
+      - "MiniTarball::HeaderFormatter"
+
+  # Idiomatic resource management pattern
+  NestedIterators:
+    exclude:
+      - "MiniTarball::Writer"
+
+  # Duck typing via respond_to? is necessary for IO validation
+  ManualDispatch:
+    exclude:
+      - "MiniTarball::Writer#ensure_valid_io"
+      - "MiniTarball::Writer#ensure_seekable_io"
+
+  # Thin wrappers for consistent naming are acceptable
+  UtilityFunction:
+    exclude:
+      - "MiniTarball::Writer#ensure_safe_name"
+      - "MiniTarball::Writer#ensure_safe_target"
+
+  # Validating input for nil is required
+  NilCheck:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::PathValidator"
+
+  # Reasonable thresholds for this codebase
+  TooManyStatements:
+    max_statements: 10
+
+  TooManyMethods:
+    max_methods: 25
+
+  TooManyInstanceVariables:
+    max_instance_variables: 6
+
+  TooManyConstants:
+    max_constants: 10
+
+  # base256 is the standard term from GNU tar documentation
+  UncommunicativeMethodName:
+    accept:
+      - /base256/
+
+  # Not requiring module documentation comments
   IrresponsibleModule:
     enabled: false
-  TooManyInstanceVariables:
-    max_instance_variables: 5

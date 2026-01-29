@@ -4,6 +4,7 @@ require "simplecov" if ENV["COVERAGE"]
 require "mini_tarball"
 require "super_diff/rspec"
 require_relative "helper/super_diff/extension"
+require_relative "support/matchers/tar_header_matchers"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
