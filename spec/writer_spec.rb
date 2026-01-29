@@ -206,20 +206,6 @@ RSpec.describe MiniTarball::Writer do
       expect(io.string).to have_tar_header_field(:name, "mydir/")
     end
 
-    it "creates valid tar that extracts with system tar" do
-      MiniTarball::Writer.use(io) do |writer|
-        writer.add_directory(name: "testdir", **default_options)
-      end
-
-      Dir.mktmpdir do |temp_dir|
-        tar_path = File.join(temp_dir, "test.tar")
-        File.binwrite(tar_path, io.string)
-
-        system("tar", "-xf", tar_path, "-C", temp_dir)
-        expect(File.directory?(File.join(temp_dir, "testdir"))).to be true
-      end
-    end
-
     it "uses mode 0755 by default" do
       MiniTarball::Writer.use(io) { |writer| writer.add_directory(name: "mydir") }
 
@@ -250,24 +236,6 @@ RSpec.describe MiniTarball::Writer do
       end
 
       expect(io.string).to have_tar_header_field(:mode, "0000777")
-    end
-
-    it "creates valid tar that extracts with system tar" do
-      MiniTarball::Writer.use(io) do |writer|
-        writer.add_file_from_stream(name: "target.txt", **default_options) do |s|
-          s.write("content")
-        end
-        writer.add_symlink(name: "link.txt", target: "target.txt", **default_options)
-      end
-
-      Dir.mktmpdir do |temp_dir|
-        tar_path = File.join(temp_dir, "test.tar")
-        File.binwrite(tar_path, io.string)
-
-        system("tar", "-xf", tar_path, "-C", temp_dir)
-        expect(File.symlink?(File.join(temp_dir, "link.txt"))).to be true
-        expect(File.readlink(File.join(temp_dir, "link.txt"))).to eq("target.txt")
-      end
     end
 
     it "supports targets longer than 100 bytes" do
@@ -349,24 +317,6 @@ RSpec.describe MiniTarball::Writer do
       expect(io.string).to have_tar_header_field(:name, "link.txt")
       expect(io.string).to have_tar_header_field(:typeflag, "1")
       expect(io.string).to have_tar_header_field(:linkname, "target.txt")
-    end
-
-    it "creates valid tar that extracts with system tar" do
-      MiniTarball::Writer.use(io) do |writer|
-        writer.add_file_from_stream(name: "target.txt", **default_options) do |s|
-          s.write("content")
-        end
-        writer.add_hardlink(name: "link.txt", target: "target.txt", **default_options)
-      end
-
-      Dir.mktmpdir do |temp_dir|
-        tar_path = File.join(temp_dir, "test.tar")
-        File.binwrite(tar_path, io.string)
-
-        system("tar", "-xf", tar_path, "-C", temp_dir)
-        expect(File.exist?(File.join(temp_dir, "link.txt"))).to be true
-        expect(File.read(File.join(temp_dir, "link.txt"))).to eq("content")
-      end
     end
 
     it "supports targets longer than 100 bytes" do
@@ -714,35 +664,5 @@ RSpec.describe MiniTarball::Writer do
 
   it "raises an error when no valid IO object is used" do
     expect { MiniTarball::Writer.new(Object.new) }.to raise_error(MiniTarball::NoIOLikeObjectError)
-  end
-
-  describe "integration: extraction with system tar" do
-    # TODO: Add a byte-for-byte comparison against GNU tar for an archive that includes
-    # long-name and long-linkname headers (e.g., a symlink with both long name and target).
-    it "creates archives that can be extracted by system tar" do
-      Dir.mktmpdir do |temp_dir|
-        tar_path = File.join(temp_dir, "test.tar")
-        extract_dir = File.join(temp_dir, "extracted")
-        Dir.mkdir(extract_dir)
-
-        # Create a tar file with our Writer
-        MiniTarball::Writer.create(tar_path) do |writer|
-          writer.add_file_from_stream(name: "hello.txt", **default_options) do |stream|
-            stream.write("Hello, World!")
-          end
-          writer.add_file_from_stream(name: "subdir/nested.txt", **default_options) do |stream|
-            stream.write("Nested content")
-          end
-        end
-
-        # Extract with system tar
-        tar_binary = /darwin/ =~ RUBY_PLATFORM ? "gtar" : "tar"
-        system(tar_binary, "-xf", tar_path, "-C", extract_dir)
-
-        # Verify extracted contents
-        expect(File.read(File.join(extract_dir, "hello.txt"))).to eq("Hello, World!")
-        expect(File.read(File.join(extract_dir, "subdir/nested.txt"))).to eq("Nested content")
-      end
-    end
   end
 end

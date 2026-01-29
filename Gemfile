@@ -6,6 +6,7 @@ gemspec
 
 gem "rake", "~> 13"
 gem "rspec"
+gem "rspec-path_matchers", "~> 0.2"
 gem "rubocop-discourse-base"
 gem "rubocop-rspec"
 gem "rubocop-rake"

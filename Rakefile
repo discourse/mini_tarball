@@ -5,6 +5,10 @@ require "rspec/core/rake_task"
 
 RSpec::Core::RakeTask.new(:spec)
 
+RSpec::Core::RakeTask.new(:unit) { |t| t.rspec_opts = "--tag ~integration" }
+
+RSpec::Core::RakeTask.new(:integration) { |t| t.rspec_opts = "--tag integration" }
+
 require "rubocop/rake_task"
 
 RuboCop::RakeTask.new
