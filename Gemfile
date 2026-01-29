@@ -4,9 +4,9 @@ source "https://rubygems.org"
 
 gemspec
 
-gem "rake", "~> 13"
+gem "rake"
 gem "rspec"
-gem "rspec-path_matchers", "~> 0.2"
+gem "rspec-path_matchers"
 gem "rubocop-discourse-base"
 gem "rubocop-rspec"
 gem "rubocop-rake"

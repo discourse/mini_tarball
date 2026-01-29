@@ -92,5 +92,96 @@ RSpec.describe MiniTarball::HeaderWriter do
       header_writer.write(header)
       expect(io.string).to eq(fixture("headers/small_file_header"))
     end
+
+    it "correctly outputs header for directory" do
+      header =
+        MiniTarball::Header.new(
+          name: "testdir/",
+          size: 0,
+          typeflag: MiniTarball::Header::TYPE_DIRECTORY,
+          mode: 0755,
+          **default_options.except(:mode),
+        )
+      header_writer.write(header)
+      expect(io.string).to eq(fixture("headers/directory_header"))
+    end
+
+    it "correctly outputs header for symlink with short target" do
+      header =
+        MiniTarball::Header.new(
+          name: "link.txt",
+          size: 0,
+          typeflag: MiniTarball::Header::TYPE_SYMLINK,
+          linkname: "target.txt",
+          **default_options,
+        )
+      header_writer.write(header)
+      expect(io.string).to eq(fixture("headers/symlink_short_target_header"))
+    end
+
+    it "correctly outputs header for symlink with long target" do
+      long_target =
+        "this/is/a/very/long/path/with/lots/of/sub/directories/to/test/how/gnu/tar/" \
+          "behaves/when/symlinks/point/to/a/very/long/target/path.txt"
+      header =
+        MiniTarball::Header.new(
+          name: "link.txt",
+          size: 0,
+          typeflag: MiniTarball::Header::TYPE_SYMLINK,
+          linkname: long_target,
+          **default_options,
+        )
+      header_writer.write(header)
+      expect(io.string).to eq(fixture("headers/symlink_long_target_header"))
+    end
+
+    it "correctly outputs header for hardlink with short target" do
+      header =
+        MiniTarball::Header.new(
+          name: "hardlink.txt",
+          size: 0,
+          typeflag: MiniTarball::Header::TYPE_HARDLINK,
+          linkname: "original.txt",
+          **default_options,
+        )
+      header_writer.write(header)
+      expect(io.string).to eq(fixture("headers/hardlink_short_target_header"))
+    end
+
+    it "correctly outputs header for hardlink with long target" do
+      long_name =
+        "this_is_an_extremely_long_file_name_with_many_underscores_and_" \
+          "lots_of_ascii_characters_that_exceeds_one_hundred_bytes.txt"
+      header =
+        MiniTarball::Header.new(
+          name: "hardlink.txt",
+          size: 0,
+          typeflag: MiniTarball::Header::TYPE_HARDLINK,
+          linkname: long_name,
+          **default_options,
+        )
+      header_writer.write(header)
+      expect(io.string).to eq(fixture("headers/hardlink_long_target_header"))
+    end
+
+    it "correctly outputs header for exactly 100 byte name (no extension needed)" do
+      name = "a" * 96 + ".txt"
+      header = MiniTarball::Header.new(name:, size: 3, **default_options)
+      header_writer.write(header)
+      expect(io.string).to eq(fixture("headers/exactly_100_byte_name_header"))
+    end
+
+    it "correctly outputs header for exactly 101 byte name (extension required)" do
+      name = "a" * 97 + ".txt"
+      header = MiniTarball::Header.new(name:, size: 3, **default_options)
+      header_writer.write(header)
+      expect(io.string).to eq(fixture("headers/exactly_101_byte_name_header"))
+    end
+
+    it "correctly outputs header for empty file" do
+      header = MiniTarball::Header.new(name: "empty.txt", size: 0, **default_options)
+      header_writer.write(header)
+      expect(io.string).to eq(fixture("headers/empty_file_header"))
+    end
   end
 end

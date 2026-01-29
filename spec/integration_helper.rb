@@ -2,7 +2,7 @@
 
 require_relative "spec_helper"
 require "rspec/path_matchers"
-require_relative "integration/support/gnu_tar"
+require_relative "support/gnu_tar"
 require_relative "integration/support/hardlink_matcher"
 require_relative "integration/support/archive_builder"
 

@@ -26,16 +26,23 @@ jobs:
       - name: Check Ruby formatting with Syntax Tree
         run: bundle exec stree check Gemfile Rakefile *.gemspec "lib/**/*.rb" "spec/**/*.rb"
 
+  verify-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      - run: tar --version | grep "GNU tar"
+      - run: bundle exec rake fixtures:verify
+
   unit-tests:
     runs-on: ubuntu-latest
     name: Unit tests - Ruby ${{ matrix.ruby }}
     strategy:
       matrix:
-        ruby:
-          - '3.2'
-          - '3.3'
-          - '3.4'
-          - '4.0'
+        ruby: ['3.2', '3.3', '3.4', '4.0']
 
     steps:
       - uses: actions/checkout@v6
@@ -55,7 +62,7 @@ jobs:
     strategy:
       matrix:
         os: ['ubuntu-latest', 'macos-latest']
-        ruby: ['3.4', '4.0']
+        ruby: ['3.2', '3.3', '3.4', '4.0']
 
     steps:
       - uses: actions/checkout@v6
@@ -83,7 +90,7 @@ jobs:
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [unit-tests, integration-tests]
+    needs: [lint, verify-fixtures, unit-tests, integration-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

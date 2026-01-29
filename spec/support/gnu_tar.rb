@@ -22,6 +22,21 @@ module GnuTar
       "GNU tar #{MINIMUM_VERSION}+ not found. Install with: brew install gnu-tar (macOS) or apt install tar (Linux)"
     end
 
+    def create(archive_path, files:, chdir:, sparse: false, **options)
+      raise "GNU tar not available" unless available?
+
+      args = ["-cf", archive_path, "--format=gnu"]
+      args += ["--sparse"] if sparse
+      args += ["--owner=#{options[:uname]}:#{options[:uid]}"] if options[:uid]
+      args += ["--group=#{options[:gname]}:#{options[:gid]}"] if options[:gid]
+      args += ["--mtime=#{options[:mtime]}"] if options[:mtime]
+      args += ["--mode=#{format("%04o", options[:mode])}"] if options[:mode]
+      args += ["--blocking-factor=#{options[:blocking_factor]}"] if options[:blocking_factor]
+      args += files
+
+      Dir.chdir(chdir) { system(binary_path, *args, out: File::NULL, err: File::NULL) }
+    end
+
     def extract(archive_path, destination:)
       raise "GNU tar not available" unless available?
 
