@@ -29,39 +29,22 @@ namespace :fixtures do
   desc "Verify fixtures are up-to-date (for CI)"
   task :verify do
     require "tmpdir"
-    require "fileutils"
     require_relative "spec/fixtures/generator"
 
     Dir.mktmpdir do |tmpdir|
-      # Point generator at temp directory
-      temp_fixtures = File.join(tmpdir, "fixtures")
-      FileUtils.mkdir_p(temp_fixtures)
-
-      # Generate to temp location
-      generator = FixtureGenerator.new
-      original_dir = FixtureGenerator::FIXTURES_DIR
-
-      # Temporarily redirect output directories
-      FixtureGenerator.send(:remove_const, :FIXTURES_DIR)
-      FixtureGenerator.const_set(:FIXTURES_DIR, temp_fixtures)
-      FixtureGenerator.send(:remove_const, :HEADERS_DIR)
-      FixtureGenerator.const_set(:HEADERS_DIR, File.join(temp_fixtures, "headers"))
-      FixtureGenerator.send(:remove_const, :FILES_DIR)
-      FixtureGenerator.const_set(:FILES_DIR, File.join(temp_fixtures, "files"))
-      FixtureGenerator.send(:remove_const, :ARCHIVES_DIR)
-      FixtureGenerator.const_set(:ARCHIVES_DIR, File.join(temp_fixtures, "archives"))
-
+      generator = FixtureGenerator.new(output_dir: tmpdir)
       generator.generate_all
 
       # Compare generated fixtures with existing ones
+      original_dir = FixtureGenerator::DEFAULT_OUTPUT_DIR
       differences = []
 
       Dir
-        .glob(File.join(temp_fixtures, "**/*"))
+        .glob(File.join(tmpdir, "**/*"))
         .each do |generated_file|
           next if File.directory?(generated_file)
 
-          relative_path = generated_file.sub("#{temp_fixtures}/", "")
+          relative_path = generated_file.sub("#{tmpdir}/", "")
           existing_file = File.join(original_dir, relative_path)
 
           if !File.exist?(existing_file)

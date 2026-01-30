@@ -14,10 +14,16 @@ class FixtureGenerator
     mode: 0644,
   }.freeze
 
-  FIXTURES_DIR = File.expand_path(__dir__)
-  HEADERS_DIR = File.join(FIXTURES_DIR, "headers")
-  FILES_DIR = File.join(FIXTURES_DIR, "files")
-  ARCHIVES_DIR = File.join(FIXTURES_DIR, "archives")
+  DEFAULT_OUTPUT_DIR = File.expand_path(__dir__).freeze
+
+  attr_reader :output_dir, :headers_dir, :files_dir, :archives_dir
+
+  def initialize(output_dir: DEFAULT_OUTPUT_DIR)
+    @output_dir = output_dir
+    @headers_dir = File.join(output_dir, "headers")
+    @files_dir = File.join(output_dir, "files")
+    @archives_dir = File.join(output_dir, "archives")
+  end
 
   def generate_all
     ensure_directories
@@ -62,14 +68,14 @@ class FixtureGenerator
 
   def generate_archives
     Dir.mktmpdir do |tmpdir|
-      FileUtils.cp(File.join(FILES_DIR, "file1.txt"), tmpdir)
-      FileUtils.cp(File.join(FILES_DIR, "file2.txt"), tmpdir)
-      FileUtils.cp(File.join(FILES_DIR, "file3.txt"), tmpdir)
+      FileUtils.cp(File.join(files_dir, "file1.txt"), tmpdir)
+      FileUtils.cp(File.join(files_dir, "file2.txt"), tmpdir)
+      FileUtils.cp(File.join(files_dir, "file3.txt"), tmpdir)
 
       generate_archive("multiple_files.tar", %w[file1.txt file2.txt file3.txt], tmpdir)
 
       FileUtils.cp(
-        File.join(FILES_DIR, "file1_with_trailing_zeros.txt"),
+        File.join(files_dir, "file1_with_trailing_zeros.txt"),
         File.join(tmpdir, "file1.txt"),
       )
 
@@ -80,7 +86,7 @@ class FixtureGenerator
   private
 
   def ensure_directories
-    FileUtils.mkdir_p([HEADERS_DIR, FILES_DIR, ARCHIVES_DIR])
+    FileUtils.mkdir_p([headers_dir, files_dir, archives_dir])
   end
 
   def generate_small_file_header
@@ -232,7 +238,7 @@ class FixtureGenerator
       File.open(tar_path, "rb") do |f|
         f.seek(offset) if offset > 0
         header_data = f.read(header_size)
-        File.binwrite(File.join(HEADERS_DIR, "#{name}_header"), header_data)
+        File.binwrite(File.join(headers_dir, "#{name}_header"), header_data)
       end
 
       puts "Generated #{name}_header"
@@ -241,13 +247,13 @@ class FixtureGenerator
   end
 
   def generate_fixture_file(name, content)
-    File.binwrite(File.join(FILES_DIR, name), content)
+    File.binwrite(File.join(files_dir, name), content)
     puts "Generated #{name}"
   end
 
   def generate_archive(name, files, chdir)
     GnuTar.create(
-      File.join(ARCHIVES_DIR, name),
+      File.join(archives_dir, name),
       files:,
       chdir:,
       blocking_factor: 1,
