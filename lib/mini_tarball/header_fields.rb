@@ -27,11 +27,6 @@ module MiniTarball
       HeaderFormatter.zero_pad(encode_fields)
     end
 
-    # Sets a field value, formatting it according to field type.
-    #
-    # @param name [Symbol] field name
-    # @param value [Object] raw value
-    # @return [void]
     private def set_value(name, value)
       field = Header::FIELDS[name]
 
@@ -47,9 +42,6 @@ module MiniTarball
       end
     end
 
-    # Calculates and sets the header checksum.
-    #
-    # @return [void]
     private def update_checksum
       checksum = encode_fields.unpack("C*").sum
       set_value(:checksum, checksum)

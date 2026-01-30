@@ -18,7 +18,7 @@ module MiniTarball
     # @raise [ValueTooLargeError] if value exceeds field capacity
     def self.format_number(value, length)
       return nil if !value
-      raise NotImplementedError.new("Negative numbers are not supported") if value.negative?
+      raise NotImplementedError.new("Negative numbers are not supported") if value < 0
 
       fits_into_octal?(value, length) ? to_octal(value, length) : to_base256(value, length)
     end
@@ -45,7 +45,7 @@ module MiniTarball
     # Pads binary data to a multiple of the block size.
     #
     # @param binary [String] the data to pad
-    # @return [String] padded data (new string, does not mutate input)
+    # @return [String] padded data
     def self.zero_pad(binary)
       padding_length = (Header::BLOCK_SIZE - binary.length) % Header::BLOCK_SIZE
       padding_length > 0 ? binary + ("\0" * padding_length) : binary
