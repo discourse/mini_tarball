@@ -32,7 +32,7 @@ module MiniTarball
     # @param name [Symbol] field name
     # @param value [Object] raw value
     # @return [void]
-    def set_value(name, value)
+    private def set_value(name, value)
       field = Header::FIELDS[name]
 
       @values_by_field[name] = case field[:type]
@@ -50,7 +50,7 @@ module MiniTarball
     # Calculates and sets the header checksum.
     #
     # @return [void]
-    def update_checksum
+    private def update_checksum
       checksum = encode_fields.unpack("C*").sum
       set_value(:checksum, checksum)
     end
