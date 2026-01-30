@@ -5,7 +5,7 @@ module MiniTarball
   # Raises an error if writes would fall outside the defined region.
   #
   # @api private
-  class LimitedSizeStream
+  class BoundedRegionStream
     # @return [Integer] the starting byte position of the writable region
     attr_reader :start_position
 
@@ -14,7 +14,7 @@ module MiniTarball
 
     private attr_reader :io
 
-    # Creates a new limited size stream.
+    # Creates a new bounded region stream.
     #
     # @param io [IO] the underlying IO object
     # @param start_position [Integer] the starting byte position

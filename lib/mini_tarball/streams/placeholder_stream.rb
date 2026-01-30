@@ -5,7 +5,7 @@ module MiniTarball
   # Fills any remaining space in the region with null bytes after each write.
   #
   # @api private
-  class PlaceholderStream < LimitedSizeStream
+  class PlaceholderStream < BoundedRegionStream
     # Writes data and pads remaining space with null bytes.
     #
     # @param data [String] data to write
