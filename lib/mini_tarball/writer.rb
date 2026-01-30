@@ -67,8 +67,8 @@ module MiniTarball
       @write_only_io = WriteOnlyStream.new(@io)
       @header_writer = HeaderWriter.new(@write_only_io)
       @closed = false
-      @writer_id = Object.new
-      @placeholders = {}
+      @placeholder_data = {}
+      @placeholder_counter = 0
     end
 
     # Adds a file from the filesystem to the archive.
@@ -320,7 +320,7 @@ module MiniTarball
     #
     # @param name [String] the filename in the archive
     # @param size [Integer] reserved size in bytes
-    # @return [PlaceholderRef] a reference to pass to {#fill}
+    # @return [Integer] an opaque placeholder ID to pass to {#fill}
     # @raise [UnsafeNameError] if name contains path traversal or absolute paths
     #
     # @note The +size+ declares the maximum content. If less is written when filling,
@@ -340,46 +340,39 @@ module MiniTarball
 
       write_padding
 
-      placeholder =
-        PlaceholderRef.new(
-          header_start_position:,
-          file_start_position:,
-          size:,
-          writer_id: @writer_id,
-        )
-      @placeholders[placeholder] = :unfilled
-      placeholder
+      id = (@placeholder_counter += 1)
+      @placeholder_data[id] = { header_start_position:, file_start_position:, size:, filled: false }
+      id
     end
 
     # Fills a previously reserved placeholder with content.
     # Yields a {PlaceholderFiller} that provides a restricted interface
     # for adding files within the reserved space.
     #
-    # @param placeholder [PlaceholderRef] the placeholder returned by {#reserve}
+    # @param placeholder_id [Integer] the placeholder ID returned by {#reserve}
     # @yieldparam filler [PlaceholderFiller] restricted writer for the placeholder
     # @return [self]
-    # @raise [ArgumentError] if placeholder is unknown, already filled, or from another writer
+    # @raise [ArgumentError] if placeholder is unknown or already filled
     # @raise [NotSeekableError] if the IO doesn't support seeking
     # @see #reserve
-    def fill(placeholder, &block)
+    def fill(placeholder_id)
       ensure_not_closed
       ensure_seekable_io
-      validate_placeholder!(placeholder)
 
-      fill_placeholder(placeholder, &block)
-      @placeholders[placeholder] = :filled
+      data = @placeholder_data[placeholder_id]
+      raise ArgumentError, "Unknown placeholder" unless data
+      raise ArgumentError, "Placeholder already filled" if data[:filled]
+
+      fill_placeholder(data) { |filler| yield filler }
+      data[:filled] = true
       self
     end
 
-    private def fill_placeholder(placeholder)
-      @io.seek(placeholder.header_start_position)
+    private def fill_placeholder(data)
+      @io.seek(data[:header_start_position])
       old_write_only_io = @write_only_io
       @write_only_io =
-        PlaceholderStream.new(
-          @io,
-          start_position: placeholder.file_start_position,
-          size: placeholder.size,
-        )
+        PlaceholderStream.new(@io, start_position: data[:file_start_position], size: data[:size])
 
       yield PlaceholderFiller.new(self)
 
@@ -482,18 +475,8 @@ module MiniTarball
       PathValidator.validate_target!(target)
     end
 
-    private def validate_placeholder!(placeholder)
-      state = @placeholders[placeholder]
-      raise ArgumentError, "Unknown placeholder" if state.nil?
-      raise ArgumentError, "Placeholder already filled" if state == :filled
-
-      unless placeholder.writer_id == @writer_id
-        raise ArgumentError, "Placeholder belongs to another writer"
-      end
-    end
-
     private def ensure_all_placeholders_filled!
-      unfilled = @placeholders.values.include?(:unfilled)
+      unfilled = @placeholder_data.values.any? { |d| !d[:filled] }
       return unless unfilled
 
       @io.close
