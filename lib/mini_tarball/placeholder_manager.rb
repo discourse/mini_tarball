@@ -35,6 +35,8 @@ module MiniTarball
     # @param attrs [EntryAttributes] file attributes
     # @yieldparam stream [CappedWriteStream] stream to write content to
     def fill(placeholder, attrs, &block)
+      ensure_placeholder_owned!(placeholder)
+
       @io.seek(placeholder.header_start)
       @header_writer.write(Header.new(name: placeholder.name, size: placeholder.size, attrs:))
 
@@ -51,6 +53,14 @@ module MiniTarball
     # @return [Boolean]
     def all_filled?
       @placeholders.all?(&:filled?)
+    end
+
+    private
+
+    def ensure_placeholder_owned!(placeholder)
+      return if @placeholders.include?(placeholder)
+
+      raise ArgumentError, "Placeholder does not belong to this writer"
     end
   end
 end

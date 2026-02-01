@@ -6,6 +6,11 @@ RSpec.describe MiniTarball::HeaderFormatter do
       described_class.format_number(value, length)
     end
 
+    def decode_base256(encoded)
+      bytes = encoded.bytes
+      bytes[1..].reduce(0) { |value, byte| (value << 8) | byte }
+    end
+
     it "returns nil if the value is nil" do
       expect(format(nil, 10)).to eq(nil)
     end
@@ -28,29 +33,28 @@ RSpec.describe MiniTarball::HeaderFormatter do
     end
 
     context "with base-256" do
+      let(:max_octal_8) { (8**7) - 1 }
+
       it "returns a string with the correct length" do
-        expect(format(4096, 8).length).to eq(8)
+        expect(format(max_octal_8 + 1, 8).length).to eq(8)
       end
 
       it "returns a string where the leading byte is 0x80" do
-        expect(format(4096, 8)).to start_with(0x80.chr)
+        expect(format(max_octal_8 + 1, 8)).to start_with(0x80.chr)
       end
 
       it "returns an encoded number" do
-        expect(format(4096, 8)).to eq([0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00].pack("C*"))
-        expect(format(269_488_144, 8)).to eq(
-          [0x80, 0x00, 0x00, 0x00, 0x10, 0x10, 0x10, 0x10].pack("C*"),
-        )
-        expect(format(0x7F_FF_FF_FF_FF_FF, 8)).to eq(
-          [0x80, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF].pack("C*"),
-        )
-        expect(format(0x80_00_00_00_00_00, 12)).to eq(
-          [0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00].pack("C*"),
-        )
+        encoded = format(max_octal_8 + 1, 8)
+        expect(decode_base256(encoded)).to eq(max_octal_8 + 1)
+
+        max_octal_12 = (8**11) - 1
+        encoded_12 = format(max_octal_12 + 1, 12)
+        expect(decode_base256(encoded_12)).to eq(max_octal_12 + 1)
       end
 
       it "raises an exception if the value is too large to encode into the given length" do
-        expect { format(0x1_00_00_00_00_00_00, 8) }.to raise_error(MiniTarball::ValueTooLargeError)
+        too_large = 1 << 56
+        expect { format(too_large, 8) }.to raise_error(MiniTarball::ValueTooLargeError)
       end
     end
 
