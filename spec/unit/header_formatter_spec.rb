@@ -11,7 +11,7 @@ RSpec.describe MiniTarball::HeaderFormatter do
     end
 
     it "raises an exception if the value is negative" do
-      expect { format(-1, 10) }.to raise_error(NotImplementedError)
+      expect { format(-1, 10) }.to raise_error(ArgumentError, /Negative numbers are not supported/)
     end
 
     context "with octal" do

@@ -1,5 +1,106 @@
+exclude_paths:
+  - spec/
+
 detectors:
+  # --- Intentional API design ---
+  
+  # Tar headers have many fields - long parameter lists are unavoidable
+  LongParameterList:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::Placeholder"
+      - "MiniTarball::Header#initialize"
+      - "MiniTarball::EntryAttributes"
+
+  # Boolean params for security options (allow_parent_references) are intentional
+  BooleanParameter:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::PathValidator"
+
+  # Pattern `x || default` is idiomatic Ruby for optional params
+  ControlParameter:
+    exclude:
+      - "MiniTarball::EntryAttributes"
+      - "MiniTarball::Placeholder#resolve_attrs"
+
+  # The attribute params (mode, uid, gid, etc.) are tar header fields - repetition is intentional
+  DataClump:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::Placeholder"
+
+  # --- Duck typing and validation patterns ---
+  
+  # Validating input for nil is required
+  NilCheck:
+    exclude:
+      - "MiniTarball::PathValidator"
+      - "MiniTarball::SourceValidator"
+
+  # Duck typing via respond_to? is necessary for IO validation
+  ManualDispatch:
+    exclude:
+      - "MiniTarball::Writer#ensure_valid_io!"
+      - "MiniTarball::Writer#ensure_seekable_io!"
+      - "MiniTarball::Writer#stream_position"
+
+  # Checking properties of stat/field objects is expected
+  FeatureEnvy:
+    exclude:
+      - "MiniTarball::Writer#ensure_valid_io!"
+      - "MiniTarball::Writer#write_file_from_disk"
+      - "MiniTarball::HeaderFields#set_value"
+
+  # --- Thin wrappers that don't need instance state ---
+  UtilityFunction:
+    exclude:
+      - "MiniTarball::Writer#ensure_safe_name!"
+      - "MiniTarball::Writer#ensure_safe_target!"
+      - "MiniTarball::ContentWriter#write_capped"
+
+  # --- False positives for this codebase ---
+  
+  # ensure_*! methods are guard clauses, not mutating operations
+  MissingSafeMethod:
+    exclude:
+      - "MiniTarball::Writer"
+
+  # Idiomatic resource management pattern (create/use with blocks)
+  NestedIterators:
+    exclude:
+      - "MiniTarball::Writer#self.create"
+      - "MiniTarball::Writer#write_file_from_disk"
+      - "MiniTarball::Placeholder#fill_from_file"
+
+  # Multiple calls to same getter at different points in time is intentional
+  DuplicateMethodCall:
+    exclude:
+      - "MiniTarball::EntryAttributes#self.from_stat"
+      - "MiniTarball::HeaderFields#set_value"
+      - "MiniTarball::HeaderFormatter#self.to_base256"
+      - "MiniTarball::ContentWriter#write_capped"
+      - "MiniTarball::PlaceholderManager"
+      - "MiniTarball::Writer#write_file_seekable"
+
+  # base256 is the standard term from GNU tar documentation
+  UncommunicativeMethodName:
+    accept:
+      - /base256/
+
+  # Not requiring module documentation comments
   IrresponsibleModule:
     enabled: false
+
+  # --- Thresholds tuned for this codebase ---
+  TooManyStatements:
+    max_statements: 20
+
+  TooManyMethods:
+    max_methods: 25
+
   TooManyInstanceVariables:
-    max_instance_variables: 5
+    max_instance_variables: 7
+
+  TooManyConstants:
+    max_constants: 10

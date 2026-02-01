@@ -26,17 +26,23 @@ jobs:
       - name: Check Ruby formatting with Syntax Tree
         run: bundle exec stree check Gemfile Rakefile *.gemspec "lib/**/*.rb" "spec/**/*.rb"
 
-  test:
+  verify-fixtures:
     runs-on: ubuntu-latest
-    name: Ruby ${{ matrix.ruby }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      - run: tar --version | grep "GNU tar"
+      - run: bundle exec rake fixtures:verify
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    name: Unit tests - Ruby ${{ matrix.ruby }}
     strategy:
       matrix:
-        os: [ 'ubuntu-latest', 'macos-latest' ]
-        ruby:
-          - '3.2'
-          - '3.3'
-          - '3.4'
-          - '4.0'
+        ruby: ['3.2', '3.3', '3.4', '4.0']
 
     steps:
       - uses: actions/checkout@v6
@@ -47,15 +53,59 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Setup MacOS
+      - name: Run unit tests
+        run: bundle exec rake unit
+
+  integration-tests:
+    runs-on: ${{ matrix.os }}
+    name: Integration - ${{ matrix.os }} Ruby ${{ matrix.ruby }}
+    strategy:
+      matrix:
+        os: ['ubuntu-latest', 'macos-latest']
+        ruby: ['3.2', '3.3', '3.4', '4.0']
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: Install bsdtar (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+      - name: Install GNU tar (macOS)
         run: brew install gnu-tar
         if: runner.os == 'macOS'
-      - name: Run tests
-        run: bundle exec rake spec
+      - name: Report tar versions
+        run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            tar --version
+            gtar --version
+            bsdtar --version
+          else
+            tar --version
+            bsdtar --version
+          fi
+      - name: Verify bsdtar available
+        run: bsdtar --version
+      - name: Verify GNU tar available
+        run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            gtar --version | grep "GNU tar"
+          else
+            tar --version | grep "GNU tar"
+          fi
+      - name: Run integration tests
+        run: bundle exec rake integration
+        env:
+          CI: true
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test
+    needs: [lint, verify-fixtures, unit-tests, integration-tests]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -9,3 +9,10 @@ AllCops:
 
 Style/HashSyntax:
   EnforcedShorthandSyntax: always
+
+Style/Send:
+  Enabled: true
+
+RSpec/DescribeClass:
+  Exclude:
+    - spec/integration/**/*
