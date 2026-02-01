@@ -141,7 +141,7 @@ module MiniTarball
       ensure_not_closed!
       ensure_safe_name!(name)
       ensure_valid_size!(size) if size
-      SourceValidator.validate!(from, content, block)
+      ensure_valid_source!(from, content, block)
 
       if from
         attribute_overrides = EntryAttributes.new(mode:, uid:, gid:, uname:, gname:, mtime:)
@@ -378,6 +378,10 @@ module MiniTarball
 
     def ensure_safe_target!(target, allow_parent_references:)
       PathValidator.validate_target!(target, allow_parent_references:)
+    end
+
+    def ensure_valid_source!(from, content, block)
+      SourceValidator.validate!(from, content, block)
     end
 
     def ensure_all_placeholders_filled!

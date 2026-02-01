@@ -22,7 +22,6 @@ detectors:
   ControlParameter:
     exclude:
       - "MiniTarball::EntryAttributes"
-      - "MiniTarball::Placeholder#resolve_attrs"
 
   # The attribute params (mode, uid, gid, etc.) are tar header fields - repetition is intentional
   DataClump:
@@ -43,7 +42,6 @@ detectors:
     exclude:
       - "MiniTarball::Writer#ensure_valid_io!"
       - "MiniTarball::Writer#ensure_seekable_io!"
-      - "MiniTarball::Writer#stream_position"
 
   # Checking properties of stat/field objects is expected
   FeatureEnvy:
@@ -57,7 +55,9 @@ detectors:
     exclude:
       - "MiniTarball::Writer#ensure_safe_name!"
       - "MiniTarball::Writer#ensure_safe_target!"
+      - "MiniTarball::Writer#ensure_valid_source!"
       - "MiniTarball::ContentWriter#write_capped"
+      - "MiniTarball::Placeholder#ensure_valid_source!"
 
   # --- False positives for this codebase ---
   
@@ -65,6 +65,7 @@ detectors:
   MissingSafeMethod:
     exclude:
       - "MiniTarball::Writer"
+      - "MiniTarball::Placeholder"
 
   # Idiomatic resource management pattern (create/use with blocks)
   NestedIterators:

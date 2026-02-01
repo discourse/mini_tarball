@@ -68,7 +68,7 @@ module MiniTarball
       &block
     )
       raise ArgumentError, "Placeholder already filled" if @filled
-      SourceValidator.validate!(from, content, block)
+      ensure_valid_source!(from, content, block)
 
       if from
         fill_from_file(from, mode:, uid:, gid:, uname:, gname:, mtime:)
@@ -97,6 +97,10 @@ module MiniTarball
         attrs = EntryAttributes.from_stat(stat, mode:, uid:, gid:, uname:, gname:, mtime:)
         @manager.fill(self, attrs) { |stream| IO.copy_stream(file, stream) }
       end
+    end
+
+    def ensure_valid_source!(from, content, block)
+      SourceValidator.validate!(from, content, block)
     end
   end
 end
