@@ -4,11 +4,14 @@ module MiniTarball
   # Manages placeholder reservations and fills within a tar archive.
   # @api private
   class PlaceholderManager
+    Reservation = Data.define(:name, :size, :header_start, :content_start).freeze
+    private_constant :Reservation
+
     def initialize(io, header_writer, content_writer)
       @io = io
       @header_writer = header_writer
       @content_writer = content_writer
-      @placeholders = []
+      @reservations = {}
     end
 
     # Reserves space for a file to be filled later.
@@ -24,8 +27,8 @@ module MiniTarball
       @io.seek(size, IO::SEEK_CUR)
       @content_writer.write_padding
 
-      placeholder = Placeholder.new(name:, size:, header_start:, content_start:, manager: self)
-      @placeholders << placeholder
+      placeholder = Placeholder.new(manager: self)
+      @reservations[placeholder] = Reservation.new(name:, size:, header_start:, content_start:)
       placeholder
     end
 
@@ -35,14 +38,15 @@ module MiniTarball
     # @param attrs [EntryAttributes] file attributes
     # @yieldparam stream [CappedWriteStream] stream to write content to
     def fill(placeholder, attrs, &block)
-      ensure_placeholder_owned!(placeholder)
+      reservation = @reservations[placeholder]
+      raise ArgumentError, "Placeholder does not belong to this writer" unless reservation
 
-      @io.seek(placeholder.header_start)
-      @header_writer.write(Header.new(name: placeholder.name, size: placeholder.size, attrs:))
+      @io.seek(reservation.header_start)
+      @header_writer.write(Header.new(name: reservation.name, size: reservation.size, attrs:))
 
-      @io.seek(placeholder.content_start)
+      @io.seek(reservation.content_start)
       begin
-        @content_writer.write_capped(@io, size: placeholder.size, &block)
+        @content_writer.write_capped(@io, size: reservation.size, &block)
       ensure
         @io.seek(0, IO::SEEK_END)
       end
@@ -52,15 +56,7 @@ module MiniTarball
     #
     # @return [Boolean]
     def all_filled?
-      @placeholders.all?(&:filled?)
-    end
-
-    private
-
-    def ensure_placeholder_owned!(placeholder)
-      return if @placeholders.include?(placeholder)
-
-      raise ArgumentError, "Placeholder does not belong to this writer"
+      @reservations.keys.all?(&:filled?)
     end
   end
 end

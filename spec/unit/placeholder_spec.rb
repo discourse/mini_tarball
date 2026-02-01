@@ -250,28 +250,4 @@ RSpec.describe MiniTarball::Placeholder do
       end
     end
   end
-
-  describe "#name" do
-    it "returns the reserved name" do
-      writer = MiniTarball::Writer.new(io)
-      placeholder = writer.placeholder "my_file.txt", size: 100
-
-      expect(placeholder.name).to eq("my_file.txt")
-
-      placeholder.fill content: "x"
-      writer.close
-    end
-  end
-
-  describe "#size" do
-    it "returns the reserved size" do
-      writer = MiniTarball::Writer.new(io)
-      placeholder = writer.placeholder "test.txt", size: 1234
-
-      expect(placeholder.size).to eq(1234)
-
-      placeholder.fill content: "x"
-      writer.close
-    end
-  end
 end

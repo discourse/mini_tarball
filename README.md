@@ -149,7 +149,8 @@ MiniTarball::Writer.create("archive.tar") do |w|
 end
 ```
 
-The `placeholder` method returns a `Placeholder` object. Fill it using the same options as `file`:
+The `placeholder` method returns a `Placeholder` object. Use it to fill the reserved entry later;
+it does not expose the reserved name or size. Fill it using the same options as `file`:
 
 ``` ruby
 # Fill from string
