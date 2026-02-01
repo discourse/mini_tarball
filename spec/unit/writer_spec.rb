@@ -628,6 +628,7 @@ RSpec.describe MiniTarball::Writer do
       placeholder = writer.placeholder "file.txt", size: 100
 
       expect(placeholder).to be_a(MiniTarball::Placeholder)
+      expect(placeholder.name).to eq("file.txt")
 
       placeholder.fill content: "x"
       writer.close

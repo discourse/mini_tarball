@@ -150,7 +150,7 @@ end
 ```
 
 The `placeholder` method returns a `Placeholder` object. Use it to fill the reserved entry later;
-it does not expose the reserved name or size. Fill it using the same options as `file`:
+it exposes the reserved name but not the size. Fill it using the same options as `file`:
 
 ``` ruby
 # Fill from string

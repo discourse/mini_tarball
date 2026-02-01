@@ -27,7 +27,7 @@ module MiniTarball
       @io.seek(size, IO::SEEK_CUR)
       @content_writer.write_padding
 
-      placeholder = Placeholder.new(manager: self)
+      placeholder = Placeholder.new(name:, manager: self)
       @reservations[placeholder] = Reservation.new(name:, size:, header_start:, content_start:)
       placeholder
     end

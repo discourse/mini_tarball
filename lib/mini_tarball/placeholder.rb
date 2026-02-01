@@ -2,7 +2,8 @@
 
 module MiniTarball
   # Represents a reserved space in the archive that can be filled later.
-  # This object is just a handle; use {#fill} to write content.
+  # This object is just a handle; it exposes the name but not the size.
+  # Use {#fill} to write content.
   #
   # Placeholders are created via {Writer#placeholder} and filled via {#fill}.
   # This allows writing a file entry at a specific position in the archive
@@ -15,8 +16,12 @@ module MiniTarball
   #     manifest.fill content: JSON.generate(files: ["data.bin"])
   #   end
   class Placeholder
+    # @return [String] the filename in the archive
+    attr_reader :name
+
     # @api private
-    def initialize(manager:)
+    def initialize(name:, manager:)
+      @name = name
       @manager = manager
       @filled = false
     end
