@@ -8,9 +8,10 @@ module MiniTarball
   module HeaderFormatter
     PERMISSION_BITMASK = 0007777
 
-    # Pre-computed max octal values for common field lengths to avoid repeated allocation.
+    # Pre-computed max octal values for supported field lengths.
     # Key is field length, value is max value that fits in (length - 1) octal digits.
     MAX_OCTAL_VALUES = {
+      7 => 0o777777, # 6 octal digits: checksum uses length - 1
       8 => 0o7777777, # 7 octal digits: mode, uid, gid, checksum, devmajor, devminor
       12 => 0o77777777777, # 11 octal digits: size, mtime, atime, ctime
     }.freeze
@@ -60,12 +61,11 @@ module MiniTarball
     end
 
     private_class_method def self.fits_into_octal?(value, length)
-      max_value = MAX_OCTAL_VALUES[length] || compute_max_octal(length)
+      max_value =
+        MAX_OCTAL_VALUES.fetch(length) do
+          raise ArgumentError, "Unsupported octal field length: #{length}"
+        end
       value <= max_value
-    end
-
-    private_class_method def self.compute_max_octal(length)
-      (8**(length - 1)) - 1
     end
 
     private_class_method def self.to_octal(value, length)

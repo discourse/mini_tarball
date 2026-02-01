@@ -82,10 +82,13 @@ module GnuTar
     end
 
     def find_executable(cmd)
-      ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).each do |dir|
-        path = File.join(dir, cmd)
-        return path if File.file?(path) && File.executable?(path)
-      end
+      ENV
+        .fetch("PATH", "")
+        .split(File::PATH_SEPARATOR)
+        .each do |dir|
+          path = File.join(dir, cmd)
+          return path if File.file?(path) && File.executable?(path)
+        end
       nil
     end
 

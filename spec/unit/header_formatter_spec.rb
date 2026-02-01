@@ -16,37 +16,46 @@ RSpec.describe MiniTarball::HeaderFormatter do
 
     context "with octal" do
       it "returns a string with length - 1" do
-        expect(format(10, 5).length).to eq(4)
+        expect(format(10, 8).length).to eq(7)
       end
 
       it "returns an octal number as long as it fits the length" do
-        expect(format(0, 5)).to eq("0000")
-        expect(format(1, 5)).to eq("0001")
-        expect(format(4095, 5)).to eq("7777")
-        expect(format(4096, 5)).to_not eq("10000")
+        expect(format(0, 8)).to eq("0000000")
+        expect(format(1, 8)).to eq("0000001")
+        expect(format(0o7777777, 8)).to eq("7777777")
+        expect(format(0o10_000_000, 8)).to_not eq("10000000")
       end
     end
 
     context "with base-256" do
       it "returns a string with the correct length" do
-        expect(format(4096, 5).length).to eq(5)
+        expect(format(4096, 8).length).to eq(8)
       end
 
       it "returns a string where the leading byte is 0x80" do
-        expect(format(4096, 5)).to start_with(0x80.chr)
+        expect(format(4096, 8)).to start_with(0x80.chr)
       end
 
       it "returns an encoded number" do
-        expect(format(4096, 5)).to eq([0x80, 0x00, 0x00, 0x10, 0x00].pack("C*"))
-        expect(format(269_488_144, 5)).to eq([0x80, 0x10, 0x10, 0x10, 0x10].pack("C*"))
-        expect(format(42_949_67_295, 5)).to eq([0x80, 0xFF, 0xFF, 0xFF, 0xFF].pack("C*"))
-        expect(format(42_949_67_296, 6)).to eq([0x80, 0x01, 0x00, 0x00, 0x00, 0x00].pack("C*"))
+        expect(format(4096, 8)).to eq([0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00].pack("C*"))
+        expect(format(269_488_144, 8)).to eq(
+          [0x80, 0x00, 0x00, 0x00, 0x10, 0x10, 0x10, 0x10].pack("C*"),
+        )
+        expect(format(0x7F_FF_FF_FF_FF_FF, 8)).to eq(
+          [0x80, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF].pack("C*"),
+        )
+        expect(format(0x80_00_00_00_00_00, 12)).to eq(
+          [0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00].pack("C*"),
+        )
       end
 
       it "raises an exception if the value is too large to encode into the given length" do
-        expect { format(65_536, 3) }.to raise_error(MiniTarball::ValueTooLargeError)
-        expect { format(42_949_67_296, 5) }.to raise_error(MiniTarball::ValueTooLargeError)
+        expect { format(0x1_00_00_00_00_00_00, 8) }.to raise_error(MiniTarball::ValueTooLargeError)
       end
+    end
+
+    it "raises an exception for unsupported field lengths" do
+      expect { format(10, 5) }.to raise_error(ArgumentError, /Unsupported octal field length/)
     end
   end
 
