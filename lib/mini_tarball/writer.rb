@@ -122,7 +122,9 @@ module MiniTarball
     # @return [self]
     # @raise [UnsafeNameError] if name contains path traversal or absolute paths
     # @raise [NotSeekableError] if size is omitted and the IO doesn't support seeking
-    # @raise [ArgumentError] if content source is invalid
+    # @raise [ArgumentError] if size is negative, content source is invalid, or size doesn't match content
+    # @raise [WriteOutOfRangeError] if streamed content exceeds the declared size
+    # @raise [ValueTooLargeError] if numeric values exceed tar header limits
     def file(
       name,
       from: nil,
@@ -175,6 +177,7 @@ module MiniTarball
     # @param mtime [Time, nil] modification time (default: current time)
     # @return [self]
     # @raise [UnsafeNameError] if name contains path traversal or absolute paths
+    # @raise [ValueTooLargeError] if numeric values exceed tar header limits
     def directory(
       name,
       mode: 0755,
@@ -206,6 +209,7 @@ module MiniTarball
     # @param allow_parent_references [Boolean] allow .. in target path (default: false for security)
     # @return [self]
     # @raise [UnsafeNameError] if name or target contains absolute paths or path traversal
+    # @raise [ValueTooLargeError] if numeric values exceed tar header limits
     def symlink(
       name,
       target:,
@@ -234,6 +238,7 @@ module MiniTarball
     # @param allow_parent_references [Boolean] allow .. in target path (default: false for security)
     # @return [self]
     # @raise [UnsafeNameError] if name or target contains absolute paths or path traversal
+    # @raise [ValueTooLargeError] if numeric values exceed tar header limits
     def hardlink(
       name,
       target:,
@@ -265,6 +270,7 @@ module MiniTarball
     # @raise [UnsafeNameError] if name contains path traversal or absolute paths
     # @raise [NotSeekableError] if the IO doesn't support seeking
     # @raise [ArgumentError] if size is negative
+    # @raise [ValueTooLargeError] if size exceeds tar header limits
     def placeholder(name, size:)
       ensure_not_closed!
       ensure_seekable_io!

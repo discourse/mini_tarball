@@ -55,6 +55,7 @@ module MiniTarball
     # @return [self]
     # @raise [ArgumentError] if already filled or invalid content source
     # @raise [WriteOutOfRangeError] if content exceeds reserved size
+    # @raise [ValueTooLargeError] if numeric values exceed tar header limits
     def fill(
       from: nil,
       content: nil,
