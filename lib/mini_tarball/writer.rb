@@ -327,9 +327,8 @@ module MiniTarball
       begin
         block.call(@write_only_io)
       ensure
-        file_end_position = stream_position
+        file_end_position = @io.pos
         file_size = file_end_position - file_start_position
-        sync_stream_position(file_end_position)
         @content_writer.write_padding
 
         @io.seek(header_start_position)
@@ -347,15 +346,6 @@ module MiniTarball
       @header_writer.write(Header.new(name:, size: 0, typeflag:, linkname: target, attrs:))
 
       self
-    end
-
-    def stream_position
-      @write_only_io.respond_to?(:pos) ? @write_only_io.pos : @io.pos
-    end
-
-    def sync_stream_position(file_end_position)
-      return if file_end_position <= @io.pos
-      @io.seek(file_end_position)
     end
 
     def ensure_valid_io!(io)
