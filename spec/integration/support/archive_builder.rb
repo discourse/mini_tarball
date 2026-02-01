@@ -65,7 +65,7 @@ class ArchiveBuilder
     when :symlink
       tar.symlink entry[:name], target: entry[:target], **default_metadata
     when :hardlink
-      tar.hardlink entry[:name], target: entry[:target]
+      tar.hardlink entry[:name], target: entry[:target], **default_metadata
     end
   end
 

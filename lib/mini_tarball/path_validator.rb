@@ -24,7 +24,7 @@ module MiniTarball
     # @param allow_parent_references [Boolean] whether to allow parent directory references (..)
     # @return [void]
     # @raise [UnsafeNameError] if target is empty, absolute, has NUL bytes, or contains
-    #   path traversal (unless allow_traversal is true)
+    #   path traversal (unless allow_parent_references is true)
     def self.validate_target!(target, allow_parent_references: false)
       raise UnsafeNameError, "Empty target not allowed" if target.nil? || target.empty?
       raise UnsafeNameError, "NUL bytes not allowed in target" if target.include?("\0")

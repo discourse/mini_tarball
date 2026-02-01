@@ -21,5 +21,19 @@ RSpec.describe MiniTarball::SourceValidator do
         /Provide exactly one of/,
       )
     end
+
+    it "raises when from is not a String" do
+      expect { described_class.validate!(123, nil, nil) }.to raise_error(
+        ArgumentError,
+        "from: must be a String",
+      )
+    end
+
+    it "raises when content is not a String" do
+      expect { described_class.validate!(nil, :content, nil) }.to raise_error(
+        ArgumentError,
+        "content: must be a String",
+      )
+    end
   end
 end

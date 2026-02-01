@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "open3"
+
 module GnuTar
   MINIMUM_VERSION = "1.26"
 
@@ -22,7 +24,8 @@ module GnuTar
       path = binary_path
       return unless path
 
-      @version ||= parse_version(`#{path} --version 2>&1`)
+      stdout, _status = Open3.capture2(path, "--version")
+      @version ||= parse_version(stdout)
     end
 
     def skip_message
@@ -59,7 +62,8 @@ module GnuTar
     def list(archive_path)
       raise "GNU tar not available" unless available?
 
-      `#{binary_path} -tf #{archive_path} 2>&1`.lines.map(&:chomp)
+      stdout, _status = Open3.capture2(binary_path, "-tf", archive_path)
+      stdout.lines.map(&:chomp)
     end
 
     private
@@ -67,13 +71,21 @@ module GnuTar
     def detect_binary
       # Try gtar first (macOS Homebrew), then tar
       %w[gtar tar].each do |cmd|
-        path = `which #{cmd} 2>/dev/null`.chomp
-        next if path.empty?
+        path = find_executable(cmd)
+        next unless path
 
-        output = `#{path} --version 2>&1`
+        output, _status = Open3.capture2(path, "--version")
         return path if output.include?("GNU tar")
       end
 
+      nil
+    end
+
+    def find_executable(cmd)
+      ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).each do |dir|
+        path = File.join(dir, cmd)
+        return path if File.file?(path) && File.executable?(path)
+      end
       nil
     end
 

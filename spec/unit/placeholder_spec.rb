@@ -81,6 +81,38 @@ RSpec.describe MiniTarball::Placeholder do
       end
     end
 
+    it "raises when file content exceeds reserved size" do
+      Tempfile.create do |tempfile|
+        tempfile.binmode
+        tempfile.write("too long content")
+        tempfile.flush
+
+        MiniTarball::Writer.use(io) do |writer|
+          placeholder = writer.placeholder "test.txt", size: 5
+
+          expect { placeholder.fill from: tempfile.path }.to raise_error(
+            MiniTarball::WriteOutOfRangeError,
+          )
+
+          # Fill with valid content so close doesn't raise
+          placeholder.fill content: "ok", **default_options
+        end
+      end
+    end
+
+    it "raises when streaming content exceeds reserved size" do
+      MiniTarball::Writer.use(io) do |writer|
+        placeholder = writer.placeholder "test.txt", size: 5
+
+        expect {
+          placeholder.fill(**default_options) { |stream| stream.write("too long") }
+        }.to raise_error(MiniTarball::WriteOutOfRangeError)
+
+        # Fill with valid content so close doesn't raise
+        placeholder.fill content: "ok", **default_options
+      end
+    end
+
     it "raises with helpful message when no source provided" do
       MiniTarball::Writer.use(io) do |writer|
         placeholder = writer.placeholder "test.txt", size: 100
