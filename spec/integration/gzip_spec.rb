@@ -18,12 +18,9 @@ RSpec.describe "Gzip compression" do
         end
       end
 
-      TarExtractor.each_extractor(tmpdir:) do |extractor, extract_dir|
-        success =
-          TarExtractor.extract(archive_path, destination: extract_dir, extractor:, gzip: true)
-
-        expect(success).to be true
-        expect(File.join(extract_dir, "hello.txt")).to be_file(content:)
+      TarExtractor.each_extractor(tmpdir:) do |ctx|
+        expect(ctx.extract(archive_path, gzip: true)).to be true
+        expect(File.join(ctx.extract_dir, "hello.txt")).to be_file(content:)
       end
     end
   end
@@ -40,14 +37,11 @@ RSpec.describe "Gzip compression" do
         end
       end
 
-      TarExtractor.each_extractor(tmpdir:) do |extractor, extract_dir|
-        success =
-          TarExtractor.extract(archive_path, destination: extract_dir, extractor:, gzip: true)
-
-        expect(success).to be true
-        expect(File.join(extract_dir, "mydir")).to be_dir
-        expect(File.join(extract_dir, "mydir/a.txt")).to be_file(content: "aaaaa")
-        expect(File.join(extract_dir, "mydir/b.txt")).to be_file(content: "bbbbb")
+      TarExtractor.each_extractor(tmpdir:) do |ctx|
+        expect(ctx.extract(archive_path, gzip: true)).to be true
+        expect(File.join(ctx.extract_dir, "mydir")).to be_dir
+        expect(File.join(ctx.extract_dir, "mydir/a.txt")).to be_file(content: "aaaaa")
+        expect(File.join(ctx.extract_dir, "mydir/b.txt")).to be_file(content: "bbbbb")
       end
     end
   end

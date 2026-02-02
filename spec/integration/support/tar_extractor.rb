@@ -3,6 +3,24 @@
 module TarExtractor
   Extractor = Data.define(:name, :binary_path)
 
+  ExtractionContext =
+    Data.define(:extractor, :extract_dir) do
+      def name = extractor.name
+
+      def extract(archive_path, gzip: false)
+        flags = gzip ? "-xzf" : "-xf"
+        system(
+          extractor.binary_path,
+          flags,
+          archive_path,
+          "-C",
+          extract_dir,
+          out: File::NULL,
+          err: File::NULL,
+        )
+      end
+    end
+
   class << self
     def extractors
       list = []
@@ -11,32 +29,12 @@ module TarExtractor
       list
     end
 
-    def each_extractor(tmpdir: nil)
+    def each_extractor(tmpdir:)
       extractors.each do |extractor|
-        extract_dir = tmpdir && extract_dir_for(extractor, within: tmpdir)
-        yield extractor, extract_dir
+        extract_dir = File.join(tmpdir, "extracted_#{extractor.name.tr(" ", "_")}")
+        FileUtils.mkdir_p(extract_dir)
+        yield ExtractionContext.new(extractor:, extract_dir:)
       end
-    end
-
-    def extract(archive_path, destination:, extractor:, gzip: false)
-      flags = gzip ? "-xzf" : "-xf"
-      system(
-        extractor.binary_path,
-        flags,
-        archive_path,
-        "-C",
-        destination,
-        out: File::NULL,
-        err: File::NULL,
-      )
-    end
-
-    private
-
-    def extract_dir_for(extractor, within:)
-      dir = File.join(within, "extracted_#{extractor.name.tr(" ", "_")}")
-      FileUtils.mkdir_p(dir)
-      dir
     end
   end
 end
