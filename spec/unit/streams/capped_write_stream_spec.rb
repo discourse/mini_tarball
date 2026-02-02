@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 RSpec.describe MiniTarball::CappedWriteStream do
+  subject(:stream) { described_class.new(io, max_size:) }
+
   let(:io) { StringIO.new.binmode }
   let(:max_size) { 100 }
-  let(:stream) { described_class.new(io, max_size:) }
 
   describe "#write" do
     it "writes data to the underlying IO" do
