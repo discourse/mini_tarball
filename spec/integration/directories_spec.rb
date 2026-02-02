@@ -4,8 +4,7 @@ require_relative "../integration_helper"
 
 RSpec.describe "Directories" do
   it "extracts an empty directory" do
-    build_archive { directory "empty" }.with_extraction do |dir, success|
-      expect(success).to be true
+    build_archive { directory "empty" }.with_extraction do |dir|
       expect(File.join(dir, "empty")).to be_dir
     end
   end
@@ -15,16 +14,12 @@ RSpec.describe "Directories" do
       directory "a"
       directory "a/b"
       directory "a/b/c"
-    end.with_extraction do |dir, success|
-      expect(success).to be true
-      expect(File.join(dir, "a/b/c")).to be_dir
-    end
+    end.with_extraction { |dir| expect(File.join(dir, "a/b/c")).to be_dir }
   end
 
   it "preserves directory permissions" do
-    build_archive { directory "restricted", mode: 0o700 }.with_extraction do |dir, success|
-      expect(success).to be true
-      expect(File.stat(File.join(dir, "restricted")).mode & 0o777).to eq(0o700)
+    build_archive { directory "restricted", mode: 0o700 }.with_extraction do |dir|
+      expect(File.join(dir, "restricted")).to have_mode(0o700)
     end
   end
 end

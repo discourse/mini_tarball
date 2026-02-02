@@ -13,20 +13,18 @@ RSpec.describe "Mixed archives" do
 
       symlink "link_to_readme", target: "project/README.md"
       hardlink "project/readme_copy", target: "project/README.md"
-    end.with_extraction do |dir, success|
-      expect(success).to be true
-
+    end.with_extraction do |dir|
       # Directories (empty and with permissions)
       expect(File.join(dir, "project/empty")).to be_dir
       expect(File.join(dir, "project/restricted")).to be_dir
-      expect(File.stat(File.join(dir, "project/restricted")).mode & 0o777).to eq(0o700)
+      expect(File.join(dir, "project/restricted")).to have_mode(0o700)
 
       # Files
       expect(File.join(dir, "project/README.md")).to be_file(
         content: "# Project\n\nA test project.",
       )
       expect(File.join(dir, "project/src/main.rb")).to be_file(content: "puts 'Hello!'")
-      expect(File.stat(File.join(dir, "project/src/main.rb")).mode & 0o777).to eq(0o755)
+      expect(File.join(dir, "project/src/main.rb")).to have_mode(0o755)
 
       # Symlink
       expect(File.join(dir, "link_to_readme")).to be_symlink(target: "project/README.md")
@@ -45,8 +43,7 @@ RSpec.describe "Mixed archives" do
     build_archive do
       file "#{long_dir}/#{unicode_file}", content: "mixed content"
       symlink "link", target: "#{long_dir}/#{unicode_file}"
-    end.with_extraction do |dir, success|
-      expect(success).to be true
+    end.with_extraction do |dir|
       expect(File.join(dir, long_dir, unicode_file)).to be_file(content: "mixed content")
       expect(File.join(dir, "link")).to be_symlink(target: "#{long_dir}/#{unicode_file}")
     end
@@ -58,8 +55,7 @@ RSpec.describe "Mixed archives" do
       hardlink "link1.txt", target: "original.txt"
       hardlink "link2.txt", target: "original.txt"
       hardlink "link3.txt", target: "original.txt"
-    end.with_extraction do |dir, success|
-      expect(success).to be true
+    end.with_extraction do |dir|
       original = File.join(dir, "original.txt")
 
       expect(File.join(dir, "link1.txt")).to be_hardlink_of(original)

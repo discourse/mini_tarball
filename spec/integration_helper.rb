@@ -6,6 +6,7 @@ require_relative "integration/support/gnu_tar"
 require_relative "integration/support/bsd_tar"
 require_relative "integration/support/tar_extractor"
 require_relative "integration/support/hardlink_matcher"
+require_relative "integration/support/mode_matcher"
 require_relative "integration/support/archive_builder"
 
 RSpec.configure do |config|

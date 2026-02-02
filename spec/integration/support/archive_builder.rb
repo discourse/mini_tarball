@@ -40,8 +40,8 @@ class ArchiveBuilder
       build_archive(archive_path)
 
       TarExtractor.each_extractor(tmpdir:) do |ctx|
-        success = ctx.extract(archive_path)
-        yield ctx.extract_dir, success, ctx.name
+        raise "#{ctx.name} failed to extract #{archive_path}" unless ctx.extract(archive_path)
+        yield ctx.extract_dir
       end
     end
   end

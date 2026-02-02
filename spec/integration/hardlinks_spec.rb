@@ -7,8 +7,7 @@ RSpec.describe "Hardlinks" do
     build_archive do
       file "original.txt", content: "shared content"
       hardlink "link.txt", target: "original.txt"
-    end.with_extraction do |dir, success|
-      expect(success).to be true
+    end.with_extraction do |dir|
       original = File.join(dir, "original.txt")
       link = File.join(dir, "link.txt")
 
@@ -25,8 +24,7 @@ RSpec.describe "Hardlinks" do
     build_archive do
       file target, content: "content"
       hardlink "link.txt", target:
-    end.with_extraction do |dir, success|
-      expect(success).to be true
+    end.with_extraction do |dir|
       expect(File.join(dir, "link.txt")).to be_hardlink_of(File.join(dir, target))
     end
   end
