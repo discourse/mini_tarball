@@ -11,7 +11,7 @@ RSpec.describe "Mixed archives" do
       file "project/README.md", content: "# Project\n\nA test project."
       file "project/src/main.rb", content: "puts 'Hello!'", mode: 0o755
 
-      symlink "project/link_to_readme", target: "README.md"
+      symlink "link_to_readme", target: "project/README.md"
       hardlink "project/readme_copy", target: "project/README.md"
     end.with_extraction do |dir, success|
       expect(success).to be true
@@ -29,8 +29,7 @@ RSpec.describe "Mixed archives" do
       expect(File.stat(File.join(dir, "project/src/main.rb")).mode & 0o777).to eq(0o755)
 
       # Symlink
-      expect(File.symlink?(File.join(dir, "project/link_to_readme"))).to be true
-      expect(File.readlink(File.join(dir, "project/link_to_readme"))).to eq("README.md")
+      expect(File.join(dir, "link_to_readme")).to be_symlink(target: "project/README.md")
 
       # Hardlink
       expect(File.join(dir, "project/readme_copy")).to be_hardlink_of(
@@ -49,7 +48,7 @@ RSpec.describe "Mixed archives" do
     end.with_extraction do |dir, success|
       expect(success).to be true
       expect(File.join(dir, long_dir, unicode_file)).to be_file(content: "mixed content")
-      expect(File.readlink(File.join(dir, "link"))).to eq("#{long_dir}/#{unicode_file}")
+      expect(File.join(dir, "link")).to be_symlink(target: "#{long_dir}/#{unicode_file}")
     end
   end
 

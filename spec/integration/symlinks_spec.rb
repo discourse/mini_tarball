@@ -9,9 +9,7 @@ RSpec.describe "Symlinks" do
       symlink "link.txt", target: "target.txt"
     end.with_extraction do |dir, success|
       expect(success).to be true
-      link_path = File.join(dir, "link.txt")
-      expect(File.symlink?(link_path)).to be true
-      expect(File.readlink(link_path)).to eq("target.txt")
+      expect(File.join(dir, "link.txt")).to be_symlink(target: "target.txt")
     end
   end
 
@@ -21,7 +19,7 @@ RSpec.describe "Symlinks" do
       symlink "link.txt", target: "subdir/target.txt"
     end.with_extraction do |dir, success|
       expect(success).to be true
-      expect(File.readlink(File.join(dir, "link.txt"))).to eq("subdir/target.txt")
+      expect(File.join(dir, "link.txt")).to be_symlink(target: "subdir/target.txt")
     end
   end
 
@@ -35,7 +33,7 @@ RSpec.describe "Symlinks" do
       symlink "link.txt", target:
     end.with_extraction do |dir, success|
       expect(success).to be true
-      expect(File.readlink(File.join(dir, "link.txt"))).to eq(target)
+      expect(File.join(dir, "link.txt")).to be_symlink(target:)
     end
   end
 
@@ -48,9 +46,7 @@ RSpec.describe "Symlinks" do
       symlink long_link_name, target: long_target
     end.with_extraction do |dir, success|
       expect(success).to be true
-      link_path = File.join(dir, long_link_name)
-      expect(File.symlink?(link_path)).to be true
-      expect(File.readlink(link_path)).to eq(long_target)
+      expect(File.join(dir, long_link_name)).to be_symlink(target: long_target)
       expect(File.join(dir, long_target)).to be_file(content: "content")
     end
   end

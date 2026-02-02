@@ -36,7 +36,7 @@ RSpec.describe "Unicode" do
       symlink "リンク.txt", target: "目標.txt"
     end.with_extraction do |dir, success|
       expect(success).to be true
-      expect(File.readlink(File.join(dir, "リンク.txt"))).to eq("目標.txt")
+      expect(File.join(dir, "リンク.txt")).to be_symlink(target: "目標.txt")
     end
   end
 end
