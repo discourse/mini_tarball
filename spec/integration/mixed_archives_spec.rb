@@ -5,23 +5,21 @@ require_relative "../integration_helper"
 RSpec.describe "Mixed archives" do
   it "extracts an archive with all entry types" do
     build_archive do
-      directory "project"
-      directory "project/src"
-      directory "project/data"
+      directory "project/empty"
+      directory "project/restricted", mode: 0o700
 
       file "project/README.md", content: "# Project\n\nA test project."
       file "project/src/main.rb", content: "puts 'Hello!'", mode: 0o755
-      file "project/data/config.json", content: '{"key": "value"}'
 
       symlink "project/link_to_readme", target: "README.md"
       hardlink "project/readme_copy", target: "project/README.md"
     end.with_extraction do |dir, success|
       expect(success).to be true
 
-      # Directories
-      expect(File.join(dir, "project")).to be_dir
-      expect(File.join(dir, "project/src")).to be_dir
-      expect(File.join(dir, "project/data")).to be_dir
+      # Directories (empty and with permissions)
+      expect(File.join(dir, "project/empty")).to be_dir
+      expect(File.join(dir, "project/restricted")).to be_dir
+      expect(File.stat(File.join(dir, "project/restricted")).mode & 0o777).to eq(0o700)
 
       # Files
       expect(File.join(dir, "project/README.md")).to be_file(
