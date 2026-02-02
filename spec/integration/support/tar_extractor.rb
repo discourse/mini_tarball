@@ -11,8 +11,11 @@ module TarExtractor
       list
     end
 
-    def each_extractor(&)
-      extractors.each(&)
+    def each_extractor(tmpdir: nil)
+      extractors.each do |extractor|
+        extract_dir = tmpdir && extract_dir_for(extractor, within: tmpdir)
+        yield extractor, extract_dir
+      end
     end
 
     def extract(archive_path, destination:, extractor:, gzip: false)
@@ -26,6 +29,14 @@ module TarExtractor
         out: File::NULL,
         err: File::NULL,
       )
+    end
+
+    private
+
+    def extract_dir_for(extractor, within:)
+      dir = File.join(within, "extracted_#{extractor.name.tr(" ", "_")}")
+      FileUtils.mkdir_p(dir)
+      dir
     end
   end
 end

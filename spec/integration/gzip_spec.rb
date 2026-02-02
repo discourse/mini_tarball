@@ -18,9 +18,7 @@ RSpec.describe "Gzip compression" do
         end
       end
 
-      TarExtractor.each_extractor do |extractor|
-        extract_dir = File.join(tmpdir, "extracted_#{extractor.name.tr(" ", "_")}")
-        FileUtils.mkdir_p(extract_dir)
+      TarExtractor.each_extractor(tmpdir:) do |extractor, extract_dir|
         success =
           TarExtractor.extract(archive_path, destination: extract_dir, extractor:, gzip: true)
 
@@ -42,9 +40,7 @@ RSpec.describe "Gzip compression" do
         end
       end
 
-      TarExtractor.each_extractor do |extractor|
-        extract_dir = File.join(tmpdir, "extracted_#{extractor.name.tr(" ", "_")}")
-        FileUtils.mkdir_p(extract_dir)
+      TarExtractor.each_extractor(tmpdir:) do |extractor, extract_dir|
         success =
           TarExtractor.extract(archive_path, destination: extract_dir, extractor:, gzip: true)
 

@@ -16,16 +16,14 @@ RSpec.configure do |config|
   end
 
   config.before(:suite) do
-    next if GnuTar.available?
-
-    if ENV["CI"]
-      raise "GNU tar is required for integration tests in CI. #{GnuTar.skip_message}"
-    else
-      warn "WARNING: #{GnuTar.skip_message}"
+    unless GnuTar.available?
+      if ENV["CI"]
+        raise "GNU tar is required for integration tests in CI. #{GnuTar.skip_message}"
+      else
+        warn "WARNING: #{GnuTar.skip_message}"
+      end
     end
-  end
 
-  config.before(:suite) do
     extractors =
       TarExtractor.extractors.map { |extractor| "#{extractor.name} (#{extractor.binary_path})" }
     puts "Integration extractors: #{extractors.join(", ")}"

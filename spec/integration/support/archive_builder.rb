@@ -39,9 +39,7 @@ class ArchiveBuilder
       archive_path = File.join(tmpdir, "test.tar")
       build_archive(archive_path)
 
-      TarExtractor.each_extractor do |extractor|
-        extract_dir = File.join(tmpdir, "extracted_#{extractor.name.tr(" ", "_")}")
-        FileUtils.mkdir_p(extract_dir)
+      TarExtractor.each_extractor(tmpdir:) do |extractor, extract_dir|
         success = TarExtractor.extract(archive_path, destination: extract_dir, extractor:)
         yield extract_dir, success, extractor.name
       end
