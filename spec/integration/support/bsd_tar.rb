@@ -15,6 +15,8 @@ module BsdTar
 
       output, status = Open3.capture2e(COMMAND, "--version")
       @binary_path = status.success? && output.include?("bsdtar") ? COMMAND : nil
+    rescue Errno::ENOENT
+      @binary_path = nil
     end
   end
 end

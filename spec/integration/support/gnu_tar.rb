@@ -4,16 +4,11 @@ require "open3"
 
 module GnuTar
   MINIMUM_VERSION = "1.26"
+  COMMANDS = %w[gtar tar].freeze
 
   class << self
     def available?
-      path = binary_path
-      return false unless path
-
-      version_string = version
-      return false unless version_string
-
-      Gem::Version.new(version_string) >= Gem::Version.new(MINIMUM_VERSION)
+      !!(binary_path && version && Gem::Version.new(version) >= Gem::Version.new(MINIMUM_VERSION))
     end
 
     def binary_path
@@ -21,80 +16,55 @@ module GnuTar
     end
 
     def version
-      path = binary_path
-      return unless path
-
-      stdout, _status = Open3.capture2(path, "--version")
-      @version ||= parse_version(stdout)
+      @version ||= detect_version
     end
 
     def skip_message
-      "GNU tar #{MINIMUM_VERSION}+ not found. Install with: brew install gnu-tar (macOS) or apt install tar (Linux)"
+      "GNU tar #{MINIMUM_VERSION}+ not found"
     end
 
     def create(archive_path, files:, chdir:, sparse: false, **options)
-      raise "GNU tar not available" unless available?
-
       args = ["-cf", archive_path, "--format=gnu"]
-      args += ["--sparse"] if sparse
-      unless options[:uid].nil?
-        owner = options[:uname] ? "#{options[:uname]}:#{options[:uid]}" : options[:uid].to_s
-        args += ["--owner=#{owner}"]
-      end
-      unless options[:gid].nil?
-        group = options[:gname] ? "#{options[:gname]}:#{options[:gid]}" : options[:gid].to_s
-        args += ["--group=#{group}"]
-      end
-      args += ["--mtime=#{options[:mtime]}"] if options[:mtime]
-      args += ["--mode=#{format("%04o", options[:mode])}"] unless options[:mode].nil?
-      args += ["--blocking-factor=#{options[:blocking_factor]}"] if options[:blocking_factor]
-      args += files
+      args << "--sparse" if sparse
+      args << "--owner=#{format_owner(options)}" if options[:uid]
+      args << "--group=#{format_group(options)}" if options[:gid]
+      args << "--mtime=#{options[:mtime]}" if options[:mtime]
+      args << "--mode=#{format("%04o", options[:mode])}" if options[:mode]
+      args << "--blocking-factor=#{options[:blocking_factor]}" if options[:blocking_factor]
+      args.concat(files)
 
       Dir.chdir(chdir) { system(binary_path, *args, out: File::NULL, err: File::NULL) }
     end
 
     def extract(archive_path, destination:)
-      raise "GNU tar not available" unless available?
-
       system(binary_path, "-xf", archive_path, "-C", destination, out: File::NULL, err: File::NULL)
-    end
-
-    def list(archive_path)
-      raise "GNU tar not available" unless available?
-
-      stdout, _status = Open3.capture2(binary_path, "-tf", archive_path)
-      stdout.lines.map(&:chomp)
     end
 
     private
 
     def detect_binary
-      # Try gtar first (macOS Homebrew), then tar
-      %w[gtar tar].each do |cmd|
-        path = find_executable(cmd)
-        next unless path
-
-        output, _status = Open3.capture2(path, "--version")
-        return path if output.include?("GNU tar")
+      COMMANDS.find do |cmd|
+        output, status = Open3.capture2e(cmd, "--version")
+        status.success? && output.include?("GNU tar")
+      rescue Errno::ENOENT
+        false
       end
-
-      nil
     end
 
-    def find_executable(cmd)
-      ENV
-        .fetch("PATH", "")
-        .split(File::PATH_SEPARATOR)
-        .each do |dir|
-          path = File.join(dir, cmd)
-          return path if File.file?(path) && File.executable?(path)
-        end
-      nil
-    end
+    def detect_version
+      return unless binary_path
 
-    def parse_version(output)
+      output, _status = Open3.capture2(binary_path, "--version")
       match = output.match(/GNU tar.*?(\d+\.\d+)/)
-      match ? match[1] : nil
+      match[1] if match
+    end
+
+    def format_owner(options)
+      options[:uname] ? "#{options[:uname]}:#{options[:uid]}" : options[:uid].to_s
+    end
+
+    def format_group(options)
+      options[:gname] ? "#{options[:gname]}:#{options[:gid]}" : options[:gid].to_s
     end
   end
 end
