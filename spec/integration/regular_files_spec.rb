@@ -20,7 +20,6 @@ RSpec.describe "Regular files" do
 
   it "extracts files in subdirectories" do
     build_archive do
-      directory "subdir"
       file "subdir/nested.txt", content: "nested content"
     end.with_extraction do |dir, success|
       expect(success).to be true

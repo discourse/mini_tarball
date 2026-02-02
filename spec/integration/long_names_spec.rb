@@ -20,17 +20,9 @@ RSpec.describe "Long names" do
   end
 
   it "extracts a deeply nested path" do
-    dirs = (1..10).map { |i| "dir#{i}" }
-    full_path = dirs.join("/") + "/file.txt"
+    full_path = (1..10).map { |i| "dir#{i}" }.join("/") + "/file.txt"
 
-    build_archive do
-      dirs.reduce("") do |path, dir|
-        current = path.empty? ? dir : "#{path}/#{dir}"
-        directory current
-        current
-      end
-      file full_path, content: "deep content"
-    end.with_extraction do |dir, success|
+    build_archive { file full_path, content: "deep content" }.with_extraction do |dir, success|
       expect(success).to be true
       expect(File.join(dir, full_path)).to be_file(content: "deep content")
     end

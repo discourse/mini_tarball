@@ -17,7 +17,6 @@ RSpec.describe "Symlinks" do
 
   it "extracts a symlink with relative path" do
     build_archive do
-      directory "subdir"
       file "subdir/target.txt", content: "content"
       symlink "link.txt", target: "subdir/target.txt"
     end.with_extraction do |dir, success|
@@ -32,7 +31,6 @@ RSpec.describe "Symlinks" do
     target = "#{long_dir}/#{long_file}.txt"
 
     build_archive do
-      directory long_dir
       file target, content: "content"
       symlink "link.txt", target:
     end.with_extraction do |dir, success|
@@ -46,8 +44,6 @@ RSpec.describe "Symlinks" do
     long_target = "targets/" + ("t" * 110) + ".txt"
 
     build_archive do
-      directory "links"
-      directory "targets"
       file long_target, content: "content"
       symlink long_link_name, target: long_target
     end.with_extraction do |dir, success|

@@ -46,7 +46,6 @@ RSpec.describe "Mixed archives" do
     unicode_file = "файл_データ.txt"
 
     build_archive do
-      directory long_dir
       file "#{long_dir}/#{unicode_file}", content: "mixed content"
       symlink "link", target: "#{long_dir}/#{unicode_file}"
     end.with_extraction do |dir, success|

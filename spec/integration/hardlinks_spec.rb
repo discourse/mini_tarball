@@ -23,7 +23,6 @@ RSpec.describe "Hardlinks" do
     target = "#{long_dir}/#{long_file}.txt"
 
     build_archive do
-      directory long_dir
       file target, content: "content"
       hardlink "link.txt", target:
     end.with_extraction do |dir, success|
