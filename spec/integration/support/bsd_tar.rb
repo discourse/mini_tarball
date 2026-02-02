@@ -1,25 +1,20 @@
 # frozen_string_literal: true
 
+require "open3"
+
 module BsdTar
+  COMMAND = "bsdtar"
+
   class << self
     def available?
       !!binary_path
     end
 
     def binary_path
-      @binary_path ||= detect_binary
-    end
+      return @binary_path if defined?(@binary_path)
 
-    private
-
-    def detect_binary
-      path = `which bsdtar 2>/dev/null`.chomp
-      return nil if path.empty?
-
-      output = `#{path} --version 2>&1`
-      return path if output.include?("bsdtar")
-
-      nil
+      output, status = Open3.capture2e(COMMAND, "--version")
+      @binary_path = status.success? && output.include?("bsdtar") ? COMMAND : nil
     end
   end
 end
