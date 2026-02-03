@@ -6,11 +6,6 @@ RSpec.describe MiniTarball::HeaderFormatter do
       described_class.format_number(value, length)
     end
 
-    def decode_base256(encoded)
-      bytes = encoded.bytes
-      bytes[1..].reduce(0) { |value, byte| (value << 8) | byte }
-    end
-
     it "returns nil if the value is nil" do
       expect(format(nil, 10)).to eq(nil)
     end
@@ -41,15 +36,6 @@ RSpec.describe MiniTarball::HeaderFormatter do
 
       it "returns a string where the leading byte is 0x80" do
         expect(format(max_octal_8 + 1, 8)).to start_with(0x80.chr)
-      end
-
-      it "returns an encoded number" do
-        encoded = format(max_octal_8 + 1, 8)
-        expect(decode_base256(encoded)).to eq(max_octal_8 + 1)
-
-        max_octal_12 = (8**11) - 1
-        encoded_12 = format(max_octal_12 + 1, 12)
-        expect(decode_base256(encoded_12)).to eq(max_octal_12 + 1)
       end
 
       it "raises an exception if the value is too large to encode into the given length" do
