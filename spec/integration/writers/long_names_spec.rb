@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../integration_helper"
+require_relative "../../integration_helper"
 
 RSpec.describe "Long names" do
   it "extracts a filename at exactly 100 bytes (boundary)" do

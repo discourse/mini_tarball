@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../integration_helper"
+require_relative "../../integration_helper"
 
 RSpec.describe "Hardlinks" do
   it "extracts a basic hardlink" do
