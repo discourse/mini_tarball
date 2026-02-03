@@ -7,6 +7,7 @@ Ruby.
 #### Supported features
 
 * Writing tar files
+* Reading tar files (GNU, ustar, pax)
 * Adding files, directories, symlinks, and hardlinks
 * Very large file sizes and file name lengths (within tar format limits)
 * Unicode file names
@@ -16,9 +17,8 @@ Ruby.
 
 #### Currently not supported features
 
-* Reading tar files
 * Sparse files
-* POSIX.1-2001 (pax) archives or other tar formats
+* Writing POSIX.1-2001 (pax) archives
 
 ## Installation
 
@@ -198,6 +198,64 @@ By default, targets containing `..` are rejected to prevent path traversal attac
 
 ``` ruby
 w.symlink "docs/latest", target: "../releases/v1.0", allow_parent_references: true
+```
+
+### Read archives
+
+``` ruby
+MiniTarball::Reader.open("archive.tar") do |reader|
+  reader.each_entry do |entry, stream|
+    puts "#{entry.name} (#{entry.size} bytes)" if entry.file?
+  end
+end
+```
+
+`Entry` supports simple predicates and a `type` symbol, so you can branch without pattern
+matching:
+
+``` ruby
+MiniTarball::Reader.open("archive.tar") do |reader|
+  reader.each_entry do |entry, stream|
+    next if entry.metadata?
+
+    case entry.type
+    when :file, :unknown
+      data = stream.read
+    when :symlink, :hardlink
+      # link target is entry.linkname
+    end
+  end
+end
+```
+
+If you need to validate entry names while iterating:
+
+``` ruby
+MiniTarball::Reader.open("archive.tar") do |reader|
+  reader.each_entry do |entry, _|
+    MiniTarball.validate_name!(entry.name)
+  end
+end
+```
+
+To extract everything (with path traversal protection):
+
+``` ruby
+MiniTarball::Reader.open("archive.tar") do |reader|
+  reader.extract_all("destination_dir")
+end
+```
+
+You can use hooks to skip or observe extraction:
+
+``` ruby
+MiniTarball::Reader.open("archive.tar") do |reader|
+  reader.extract_all(
+    "destination_dir",
+    before: ->(entry, _path) { entry.name.end_with?(".txt") },
+    after: ->(entry, path) { puts "Extracted #{entry.name} -> #{path}" },
+  )
+end
 ```
 
 ### Streaming with Gzip

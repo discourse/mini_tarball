@@ -43,6 +43,35 @@ RSpec.describe MiniTarball::ExtractionValidator do
       result = described_class.validate_extraction_path!("dir/../file.txt", tmpdir)
       expect(result).to eq(File.join(tmpdir, "file.txt"))
     end
+
+    it "rejects paths that traverse symlink components" do
+      File.symlink("/", File.join(tmpdir, "escape"))
+
+      expect {
+        described_class.validate_extraction_path!("escape/etc/passwd", tmpdir)
+      }.to raise_error(MiniTarball::PathTraversalError, /Symlink component/)
+    end
+
+    it "rejects existing symlink at final path by default" do
+      File.symlink("target.txt", File.join(tmpdir, "link.txt"))
+
+      expect {
+        described_class.validate_extraction_path!("link.txt", tmpdir)
+      }.to raise_error(MiniTarball::PathTraversalError, /Symlink component/)
+    end
+
+    it "allows existing symlink at final path when configured" do
+      File.symlink("target.txt", File.join(tmpdir, "link.txt"))
+
+      result =
+        described_class.validate_extraction_path!(
+          "link.txt",
+          tmpdir,
+          allow_final_symlink: true,
+        )
+
+      expect(result).to eq(File.join(tmpdir, "link.txt"))
+    end
   end
 
   describe ".validate_symlink_target!" do

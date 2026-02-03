@@ -176,7 +176,9 @@ RSpec.describe "Reader integration" do
 
       bytes_read = 0
       MiniTarball::Reader.open(archive_path) do |reader|
-        reader.each_file do |entry, stream|
+        reader.each_entry do |entry, stream|
+          next unless entry.file?
+
           # Read in small chunks
           while (chunk = stream.read(1024))
             bytes_read += chunk.bytesize

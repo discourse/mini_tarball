@@ -48,6 +48,13 @@ RSpec.describe MiniTarball::BoundedReadStream do
 
       expect { stream.read }.to raise_error(MiniTarball::TruncatedArchiveError)
     end
+
+    it "raises TruncatedArchiveError when length read is short" do
+      io = StringIO.new("sho")
+      stream = described_class.new(io, 10)
+
+      expect { stream.read(5) }.to raise_error(MiniTarball::TruncatedArchiveError)
+    end
   end
 
   describe "#gets" do
@@ -129,6 +136,13 @@ RSpec.describe MiniTarball::BoundedReadStream do
 
       expect(stream.eof?).to be true
       expect(io.pos).to eq(data.bytesize)
+    end
+
+    it "raises TruncatedArchiveError when seekable IO is too short" do
+      io = StringIO.new("short")
+      stream = described_class.new(io, 100)
+
+      expect { stream.skip }.to raise_error(MiniTarball::TruncatedArchiveError)
     end
 
     it "works with non-seekable IO" do

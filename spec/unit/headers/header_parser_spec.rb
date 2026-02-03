@@ -121,6 +121,19 @@ RSpec.describe MiniTarball::HeaderParser do
       # 10GB sparse file
       expect(header.size).to eq(10_737_418_241)
     end
+
+    it "uses the first byte payload bits for base-256 values" do
+      data = fixture("headers/small_file_header").dup
+      field = described_class::FIELD_OFFSETS[:size]
+      size_length = field[:length]
+      size_offset = field[:offset]
+      encoded = ([0x81] + [0x00] * (size_length - 1)).pack("C*")
+      data[size_offset, size_length] = encoded
+
+      header = described_class.parse(data, verify_checksum: false)
+
+      expect(header.size).to eq(1 << (8 * (size_length - 1)))
+    end
   end
 
   describe "ParsedHeader#full_name" do

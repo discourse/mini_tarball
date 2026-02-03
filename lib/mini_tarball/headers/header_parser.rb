@@ -260,12 +260,14 @@ module MiniTarball
 
       def parse_base256(raw)
         # First byte has 0x80 set to indicate base-256
-        # Can also be 0xFF for negative (not supported)
+        # Next bit (0x40) is the sign bit for two's complement
         first_byte = raw.getbyte(0)
-        raise InvalidHeaderError, "Negative base-256 not supported" if first_byte == 0xFF
+        if (first_byte & 0x40) != 0
+          raise InvalidHeaderError, "Negative base-256 not supported"
+        end
 
-        value = 0
-        raw.bytes[1..].each { |byte| value = (value << 8) | byte }
+        value = first_byte & 0x7f
+        raw.byteslice(1, raw.bytesize - 1).each_byte { |byte| value = (value << 8) | byte }
         value
       end
     end

@@ -24,6 +24,7 @@ require "mini_tarball/streams/write_only_stream"
 require "mini_tarball/validators/path_validator"
 require "mini_tarball/validators/source_validator"
 require "mini_tarball/validators/extraction_validator"
+require "mini_tarball/entry_name_validator"
 
 # Writers
 require "mini_tarball/writers/content_writer"

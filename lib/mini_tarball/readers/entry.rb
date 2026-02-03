@@ -111,6 +111,33 @@ module MiniTarball
         pax_extended? || pax_global? || gnu_long_link? || gnu_long_linkname?
       end
 
+      # Returns a symbolic type for this entry.
+      #
+      # @return [Symbol] one of :file, :directory, :symlink, :hardlink,
+      #   :pax_extended, :pax_global, :gnu_long_link, :gnu_long_linkname, or :unknown
+      def type
+        return :file if file?
+        return :directory if directory?
+        return :symlink if symlink?
+        return :hardlink if hardlink?
+        return :pax_extended if pax_extended?
+        return :pax_global if pax_global?
+        return :gnu_long_link if gnu_long_link?
+        return :gnu_long_linkname if gnu_long_linkname?
+
+        :unknown
+      end
+
+      # Returns whether this entry carries payload bytes in the archive.
+      # Unknown types are treated as payload entries (GNU tar behavior).
+      #
+      # @return [Boolean]
+      def payload?
+        return false if metadata? || directory? || link?
+
+        true
+      end
+
       private
 
       def self.parse_mtime(pax_mtime, header_mtime)

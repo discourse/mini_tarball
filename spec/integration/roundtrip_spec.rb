@@ -18,7 +18,7 @@ RSpec.describe "Writer/Reader roundtrip" do
       io.reopen(io.string, "rb")
       read_content = nil
       MiniTarball::Reader.use(io) do |reader|
-        reader.each_file { |_, stream| read_content = stream.read }
+        reader.each_entry { |entry, stream| read_content = stream.read if entry.file? }
       end
 
       expect(read_content).to eq(content)
@@ -41,7 +41,9 @@ RSpec.describe "Writer/Reader roundtrip" do
 
       io.reopen(io.string, "rb")
       entry = nil
-      MiniTarball::Reader.use(io) { |reader| reader.each_file { |e, _| entry = e } }
+      MiniTarball::Reader.use(io) do |reader|
+        reader.each_entry { |e, _| entry = e if e.file? }
+      end
 
       expect(entry.name).to eq("test.txt")
       expect(entry.mode).to eq(0755)
@@ -67,7 +69,9 @@ RSpec.describe "Writer/Reader roundtrip" do
       io.reopen(io.string, "rb")
       read_files = {}
       MiniTarball::Reader.use(io) do |reader|
-        reader.each_file { |entry, stream| read_files[entry.name] = stream.read }
+        reader.each_entry do |entry, stream|
+          read_files[entry.name] = stream.read if entry.file?
+        end
       end
 
       expect(read_files).to eq(files)
@@ -82,7 +86,7 @@ RSpec.describe "Writer/Reader roundtrip" do
       io.reopen(io.string, "rb")
       read_content = nil
       MiniTarball::Reader.use(io) do |reader|
-        reader.each_file { |_, stream| read_content = stream.read }
+        reader.each_entry { |entry, stream| read_content = stream.read if entry.file? }
       end
 
       expect(read_content).to eq(binary_content)
@@ -97,7 +101,7 @@ RSpec.describe "Writer/Reader roundtrip" do
       io.reopen(io.string, "rb")
       entry_name = nil
       MiniTarball::Reader.use(io) do |reader|
-        reader.each_file { |entry, _| entry_name = entry.name }
+        reader.each_entry { |entry, _| entry_name = entry.name if entry.file? }
       end
 
       expect(entry_name).to eq(long_name)
@@ -226,7 +230,7 @@ RSpec.describe "Writer/Reader roundtrip" do
 
       content = nil
       MiniTarball::Reader.open(archive_path) do |reader|
-        reader.each_file { |_, stream| content = stream.read }
+        reader.each_entry { |entry, stream| content = stream.read if entry.file? }
       end
 
       expect(content).to eq("Hello from GNU tar!")

@@ -40,7 +40,7 @@ module MiniTarball
 
       data = @io.read(read_length, buffer)
 
-      if data.nil? || (length.nil? && data.bytesize < read_length)
+      if data.nil? || data.bytesize < read_length
         raise TruncatedArchiveError, "Unexpected end of archive at byte #{@bytes_read}"
       end
 
@@ -106,15 +106,24 @@ module MiniTarball
       remaining_bytes = remaining
       return if remaining_bytes == 0
 
-      if @io.respond_to?(:seek)
+      if @io.respond_to?(:seek) && @io.respond_to?(:size) && @io.respond_to?(:pos)
+        available = @io.size - @io.pos
+        if available < remaining_bytes
+          raise TruncatedArchiveError, "Unexpected end of archive at byte #{@bytes_read}"
+        end
         @io.seek(remaining_bytes, IO::SEEK_CUR)
         @bytes_read = @size
-      else
-        # For non-seekable IO, we have to read and discard
-        while (data = @io.read([DEFAULT_READ_SIZE, remaining].min))
-          @bytes_read += data.bytesize
-          break if eof?
+        return
+      end
+
+      # For non-seekable IO (or seekable IO without size), read and discard
+      while remaining.positive?
+        to_read = [DEFAULT_READ_SIZE, remaining].min
+        data = @io.read(to_read)
+        if data.nil? || data.bytesize < to_read
+          raise TruncatedArchiveError, "Unexpected end of archive at byte #{@bytes_read}"
         end
+        @bytes_read += data.bytesize
       end
     end
 

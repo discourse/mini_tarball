@@ -12,7 +12,7 @@ module MiniTarball
     # @param destination [String] the destination directory
     # @return [String] the validated full extraction path
     # @raise [PathTraversalError] if the path would escape destination
-    def self.validate_extraction_path!(name, destination)
+    def self.validate_extraction_path!(name, destination, allow_final_symlink: false)
       # Expand the destination to an absolute path
       dest_real = File.realpath(destination)
 
@@ -24,6 +24,8 @@ module MiniTarball
         raise PathTraversalError,
               "Extraction path escapes destination: #{name} -> #{target_path} (dest: #{dest_real})"
       end
+
+      ensure_no_symlink_components!(dest_real, target_path, allow_final_symlink:)
 
       target_path
     end
@@ -82,5 +84,23 @@ module MiniTarball
         end
       end
     end
+
+    def self.ensure_no_symlink_components!(dest_real, target_path, allow_final_symlink:)
+      relative = target_path.delete_prefix(dest_real)
+      parts = relative.split(File::SEPARATOR).reject(&:empty?)
+
+      return if parts.empty?
+
+      parts_to_check = allow_final_symlink ? parts[0...-1] : parts
+      current = dest_real
+
+      parts_to_check.each do |part|
+        current = File.join(current, part)
+        if File.symlink?(current)
+          raise PathTraversalError, "Symlink component not allowed: #{current}"
+        end
+      end
+    end
+    private_class_method :ensure_no_symlink_components!
   end
 end

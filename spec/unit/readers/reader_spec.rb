@@ -3,6 +3,32 @@
 require "tempfile"
 require "tmpdir"
 
+def build_custom_archive(
+  name: "file.txt",
+  typeflag: MiniTarball::Header::TYPE_REGULAR,
+  content: "content",
+  pad: true,
+  end_blocks: true
+)
+  io = StringIO.new(String.new, "w+b")
+  attrs = MiniTarball::EntryAttributes.with_file_defaults
+  header = MiniTarball::Header.new(name:, size: content.bytesize, typeflag:, attrs:)
+
+  MiniTarball::HeaderWriter.new(io).write(header)
+  io.write(content)
+
+  if pad
+    padding =
+      (MiniTarball::Header::BLOCK_SIZE -
+        (content.bytesize % MiniTarball::Header::BLOCK_SIZE)) % MiniTarball::Header::BLOCK_SIZE
+    io.write("\0" * padding)
+  end
+
+  io.write("\0" * (MiniTarball::Header::BLOCK_SIZE * 2)) if end_blocks
+  io.rewind
+  io
+end
+
 RSpec.describe MiniTarball::Reader do
   let(:archive_data) { fixture("archives/multiple_files.tar") }
   let(:io) { StringIO.new(archive_data) }
@@ -107,26 +133,6 @@ RSpec.describe MiniTarball::Reader do
     end
   end
 
-  describe "#each_file" do
-    it "yields only file entries" do
-      # Create a test archive with files, directories, and links
-      mixed_archive = fixture("archives/mixed_entries.tar")
-      io = StringIO.new(mixed_archive)
-
-      file_names = []
-      described_class.use(io) { |reader| reader.each_file { |entry, _| file_names << entry.name } }
-
-      expect(file_names).to eq(["file.txt"])
-    end
-
-    it "returns an Enumerator when no block given" do
-      described_class.use(io) do |reader|
-        enum = reader.each_file
-        expect(enum).to be_an(Enumerator)
-      end
-    end
-  end
-
   describe "GNU long name support" do
     it "handles filenames longer than 100 bytes" do
       long_name_archive = fixture("headers/exactly_101_byte_name_header")
@@ -156,7 +162,7 @@ RSpec.describe MiniTarball::Reader do
         described_class.use(io, max_file_size: 100) do |reader|
           reader.each_entry { |_, stream| stream.skip }
         end
-      }.to raise_error(MiniTarball::ArchiveLimitError, /File size limit exceeded/)
+      }.to raise_error(MiniTarball::ArchiveLimitError, /Entry size limit exceeded/)
     end
 
     it "raises ArchiveLimitError when total size exceeds limit" do
@@ -176,6 +182,20 @@ RSpec.describe MiniTarball::Reader do
           max_entry_count: nil,
         ) { |reader| reader.each_entry { |_, stream| stream.skip } }
       }.not_to raise_error
+    end
+
+    it "applies size limits to metadata entries" do
+      long_name = "a" * 150 + ".txt"
+      io = StringIO.new(String.new, "w+b")
+
+      MiniTarball::Writer.use(io) { |writer| writer.file long_name, content: "data" }
+      io.reopen(io.string, "rb")
+
+      expect {
+        described_class.use(io, max_file_size: 10) do |reader|
+          reader.each_entry { |_, stream| stream.skip }
+        end
+      }.to raise_error(MiniTarball::ArchiveLimitError, /Entry size limit exceeded/)
     end
   end
 
@@ -335,17 +355,37 @@ RSpec.describe MiniTarball::Reader do
       expect(File.stat(file_path).ino).to eq(File.stat(hardlink_path).ino)
     end
 
-    it "raises PathTraversalError for path traversal attempts" do
-      # Create a malicious archive with path traversal
-      malicious_io = StringIO.new.binmode
+    it "extracts unknown entry types as regular files" do
+      io = build_custom_archive(name: "mystery.bin", typeflag: "Z", content: "abc")
 
-      MiniTarball::Writer.use(malicious_io) do |writer|
-        # Directly write an entry with path traversal via low-level access
-        # This bypasses the writer's safety checks for testing
+      described_class.use(io) { |reader| reader.extract_all(tmpdir) }
+
+      expect(File.read(File.join(tmpdir, "mystery.bin"))).to eq("abc")
+    end
+
+    it "supports before and after hooks" do
+      io = StringIO.new(archive_data)
+      before_seen = []
+      after_seen = []
+
+      described_class.use(io) do |reader|
+        extracted =
+          reader.extract_all(
+            tmpdir,
+            before: lambda { |entry, _path|
+              before_seen << entry.name
+              entry.name != "file2.txt"
+            },
+            after: ->(entry, path) { after_seen << [entry.name, path] },
+          )
+
+        expect(extracted).to include(File.join(tmpdir, "file1.txt"))
+        expect(extracted).to include(File.join(tmpdir, "file3.txt"))
+        expect(extracted).not_to include(File.join(tmpdir, "file2.txt"))
       end
 
-      # Since we can't easily create a malicious archive (writer blocks it),
-      # we'll test the validator directly was already done in extraction_validator_spec
+      expect(before_seen).to include("file2.txt")
+      expect(after_seen.map(&:first)).not_to include("file2.txt")
     end
 
     it "raises Errno::ENOENT if destination doesn't exist" do
@@ -354,6 +394,32 @@ RSpec.describe MiniTarball::Reader do
       expect {
         described_class.use(io) { |reader| reader.extract_all("/nonexistent/path") }
       }.to raise_error(Errno::ENOENT)
+    end
+  end
+
+  describe "truncated archives" do
+    it "raises TruncatedArchiveError on short header read" do
+      io = StringIO.new("short")
+
+      expect {
+        described_class.use(io) { |reader| reader.each_entry { |_, stream| stream.skip } }
+      }.to raise_error(MiniTarball::TruncatedArchiveError)
+    end
+
+    it "raises TruncatedArchiveError when end-of-archive block is missing" do
+      io = StringIO.new("\0" * 512)
+
+      expect {
+        described_class.use(io) { |reader| reader.each_entry { |_, stream| stream.skip } }
+      }.to raise_error(MiniTarball::TruncatedArchiveError)
+    end
+
+    it "raises TruncatedArchiveError when entry padding is incomplete" do
+      io = build_custom_archive(name: "file.txt", content: "abc", pad: false, end_blocks: false)
+
+      expect {
+        described_class.use(io) { |reader| reader.each_entry { |_, stream| stream.read } }
+      }.to raise_error(MiniTarball::TruncatedArchiveError)
     end
   end
 end

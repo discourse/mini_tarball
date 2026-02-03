@@ -152,4 +152,104 @@ RSpec.describe MiniTarball::Entry do
       expect(entry.metadata?).to be true
     end
   end
+
+  describe "#type" do
+    it "returns :file for regular files" do
+      entry = described_class.from_header(regular_header)
+      expect(entry.type).to eq(:file)
+    end
+
+    it "returns :directory for directories" do
+      entry = described_class.from_header(directory_header)
+      expect(entry.type).to eq(:directory)
+    end
+
+    it "returns :symlink for symlinks" do
+      entry = described_class.from_header(symlink_header)
+      expect(entry.type).to eq(:symlink)
+    end
+
+    it "returns :hardlink for hardlinks" do
+      entry = described_class.from_header(hardlink_header)
+      expect(entry.type).to eq(:hardlink)
+    end
+
+    it "returns :gnu_long_link for GNU long link metadata" do
+      long_link_data = fixture("headers/exactly_101_byte_name_header")[0, 512]
+      long_link_header = MiniTarball::HeaderParser.parse(long_link_data)
+      entry = described_class.from_header(long_link_header)
+
+      expect(entry.type).to eq(:gnu_long_link)
+    end
+
+    it "returns :unknown for unknown typeflags" do
+      entry =
+        described_class.new(
+          name: "mystery",
+          mode: 0644,
+          uid: 0,
+          gid: 0,
+          size: 1,
+          mtime: Time.at(0).utc,
+          typeflag: "Z",
+          linkname: "",
+          uname: "nobody",
+          gname: "nogroup",
+          devmajor: 0,
+          devminor: 0,
+        )
+
+      expect(entry.type).to eq(:unknown)
+    end
+  end
+
+  describe "#payload?" do
+    it "returns true for regular files" do
+      entry = described_class.from_header(regular_header)
+      expect(entry.payload?).to be true
+    end
+
+    it "returns false for directories" do
+      entry = described_class.from_header(directory_header)
+      expect(entry.payload?).to be false
+    end
+
+    it "returns false for symlinks" do
+      entry = described_class.from_header(symlink_header)
+      expect(entry.payload?).to be false
+    end
+
+    it "returns false for hardlinks" do
+      entry = described_class.from_header(hardlink_header)
+      expect(entry.payload?).to be false
+    end
+
+    it "returns false for metadata entries" do
+      long_link_data = fixture("headers/exactly_101_byte_name_header")[0, 512]
+      long_link_header = MiniTarball::HeaderParser.parse(long_link_data)
+      entry = described_class.from_header(long_link_header)
+
+      expect(entry.payload?).to be false
+    end
+
+    it "returns true for unknown typeflags" do
+      entry =
+        described_class.new(
+          name: "mystery",
+          mode: 0644,
+          uid: 0,
+          gid: 0,
+          size: 1,
+          mtime: Time.at(0).utc,
+          typeflag: "Z",
+          linkname: "",
+          uname: "nobody",
+          gname: "nogroup",
+          devmajor: 0,
+          devminor: 0,
+        )
+
+      expect(entry.payload?).to be true
+    end
+  end
 end
