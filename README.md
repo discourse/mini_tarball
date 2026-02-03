@@ -210,14 +210,16 @@ MiniTarball::Reader.open("archive.tar") do |reader|
 end
 ```
 
+Reader knows about regular files, directories, symlinks, and hardlinks. It also understands GNU
+long name/link headers and pax extended/global headers (these metadata entries are not yielded).
+Unknown types are treated as regular file payloads during extraction.
+
 `Entry` supports simple predicates and a `type` symbol, so you can branch without pattern
-matching:
+matching. `each_entry` skips metadata entries (GNU/pax headers) automatically.
 
 ``` ruby
 MiniTarball::Reader.open("archive.tar") do |reader|
   reader.each_entry do |entry, stream|
-    next if entry.metadata?
-
     case entry.type
     when :file, :unknown
       data = stream.read

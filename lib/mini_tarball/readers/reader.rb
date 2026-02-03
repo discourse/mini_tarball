@@ -8,6 +8,17 @@ module MiniTarball
   # Reader supports GNU tar, POSIX ustar, and pax formats. It handles long
   # filenames via GNU extensions and pax extended headers automatically.
   #
+  # Recognized typeflags:
+  # - Regular files ("0" or "\0")
+  # - Directories ("5")
+  # - Symlinks ("2")
+  # - Hardlinks ("1")
+  # - GNU long name ("L"), GNU long linkname ("K")
+  # - Pax extended ("x"), pax global ("g")
+  #
+  # Metadata entries (GNU/pax) are consumed internally and are not yielded.
+  # Unknown types are treated as regular file payloads during extraction.
+  #
   # @example Block-based reading (recommended)
   #   Reader.open("archive.tar") do |reader|
   #     reader.each_entry do |entry, stream|
@@ -125,7 +136,12 @@ module MiniTarball
         end
 
         # Apply pending GNU long names if present
-        entry = apply_gnu_long_names(entry, pending_long_name, pending_long_linkname)
+        entry =
+          apply_gnu_long_names(
+            entry,
+            long_name: pending_long_name,
+            long_linkname: pending_long_linkname,
+          )
         pending_long_name = nil
         pending_long_linkname = nil
         pending_pax_attributes = nil
@@ -181,7 +197,14 @@ module MiniTarball
 
         next if before && before.call(entry, path) == false
 
-        extract_entry(entry, stream, path, destination, preserve_permissions:, preserve_mtime:)
+        extract_entry(
+          entry: entry,
+          stream: stream,
+          path: path,
+          destination: destination,
+          preserve_permissions: preserve_permissions,
+          preserve_mtime: preserve_mtime,
+        )
         extracted << path
         after&.call(entry, path)
       end
@@ -233,6 +256,9 @@ module MiniTarball
     def read_gnu_long_name(stream)
       # GNU long name is null-terminated
       name = stream.read
+      if name.nil? || name.empty?
+        raise InvalidHeaderError, "Empty GNU long name"
+      end
       name.chomp!("\0")
       name
     end
@@ -249,7 +275,7 @@ module MiniTarball
       @pax_global_attributes.merge(entry_attributes || {})
     end
 
-    def apply_gnu_long_names(entry, long_name, long_linkname)
+    def apply_gnu_long_names(entry, long_name:, long_linkname:)
       return entry unless long_name || long_linkname
 
       Entry.new(
@@ -306,19 +332,19 @@ module MiniTarball
       raise IOError, "Reader is closed" if closed?
     end
 
-    def extract_entry(entry, stream, path, destination, preserve_permissions:, preserve_mtime:)
+    def extract_entry(entry:, stream:, path:, destination:, preserve_permissions:, preserve_mtime:)
       case
       when entry.directory?
         extract_directory(path, entry, preserve_permissions:, preserve_mtime:)
       when entry.file?
-        extract_file(path, entry, stream, preserve_permissions:, preserve_mtime:)
+        extract_file(path: path, entry: entry, stream: stream, preserve_permissions:, preserve_mtime:)
       when entry.symlink?
-        extract_symlink(path, entry, destination)
+        extract_symlink(path: path, entry: entry, destination: destination)
       when entry.hardlink?
-        extract_hardlink(path, entry, destination)
+        extract_hardlink(path: path, entry: entry, destination: destination)
       else
         # Unknown types are extracted as regular files (GNU tar behavior)
-        extract_file(path, entry, stream, preserve_permissions:, preserve_mtime:)
+        extract_file(path: path, entry: entry, stream: stream, preserve_permissions:, preserve_mtime:)
       end
     end
 
@@ -328,7 +354,7 @@ module MiniTarball
       apply_mtime(path, entry) if preserve_mtime
     end
 
-    def extract_file(path, entry, stream, preserve_permissions:, preserve_mtime:)
+    def extract_file(path:, entry:, stream:, preserve_permissions:, preserve_mtime:)
       # Ensure parent directory exists
       FileUtils.mkdir_p(File.dirname(path))
 
@@ -339,9 +365,13 @@ module MiniTarball
       apply_mtime(path, entry) if preserve_mtime
     end
 
-    def extract_symlink(path, entry, destination)
+    def extract_symlink(path:, entry:, destination:)
       # Validate symlink target
-      ExtractionValidator.validate_symlink_target!(path, entry.linkname, destination)
+      ExtractionValidator.validate_symlink_target!(
+        link_path: path,
+        target: entry.linkname,
+        destination: destination,
+      )
 
       # Ensure parent directory exists
       FileUtils.mkdir_p(File.dirname(path))
@@ -352,7 +382,7 @@ module MiniTarball
       File.symlink(entry.linkname, path)
     end
 
-    def extract_hardlink(path, entry, destination)
+    def extract_hardlink(path:, entry:, destination:)
       # Validate target path
       target_path = ExtractionValidator.validate_extraction_path!(entry.linkname, destination)
 

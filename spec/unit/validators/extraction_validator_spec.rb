@@ -80,24 +80,42 @@ RSpec.describe MiniTarball::ExtractionValidator do
     before { FileUtils.mkdir_p(File.join(tmpdir, "subdir")) }
 
     it "accepts relative targets within destination" do
-      result = described_class.validate_symlink_target!(link_path, "../file.txt", tmpdir)
+      result =
+        described_class.validate_symlink_target!(
+          link_path: link_path,
+          target: "../file.txt",
+          destination: tmpdir,
+        )
       expect(result).to eq("../file.txt")
     end
 
     it "accepts targets in same directory" do
-      result = described_class.validate_symlink_target!(link_path, "target.txt", tmpdir)
+      result =
+        described_class.validate_symlink_target!(
+          link_path: link_path,
+          target: "target.txt",
+          destination: tmpdir,
+        )
       expect(result).to eq("target.txt")
     end
 
     it "rejects absolute symlink targets" do
       expect {
-        described_class.validate_symlink_target!(link_path, "/etc/passwd", tmpdir)
+        described_class.validate_symlink_target!(
+          link_path: link_path,
+          target: "/etc/passwd",
+          destination: tmpdir,
+        )
       }.to raise_error(MiniTarball::PathTraversalError, /Absolute symlink/)
     end
 
     it "rejects symlinks that escape destination" do
       expect {
-        described_class.validate_symlink_target!(link_path, "../../escape.txt", tmpdir)
+        described_class.validate_symlink_target!(
+          link_path: link_path,
+          target: "../../escape.txt",
+          destination: tmpdir,
+        )
       }.to raise_error(MiniTarball::PathTraversalError, /escapes destination/)
     end
   end

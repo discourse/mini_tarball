@@ -37,7 +37,7 @@ module MiniTarball
     # @param destination [String] the destination directory
     # @return [String] the target (unchanged)
     # @raise [PathTraversalError] if following the symlink would escape destination
-    def self.validate_symlink_target!(link_path, target, destination)
+    def self.validate_symlink_target!(link_path:, target:, destination:)
       dest_real = File.realpath(destination)
 
       # Resolve where the symlink would point to

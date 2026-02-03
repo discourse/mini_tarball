@@ -17,6 +17,13 @@ RSpec.describe MiniTarball do
         MiniTarball::PathTraversalError,
       )
     end
-  end
 
+    it "rejects empty names" do
+      expect { described_class.validate_name!("") }.to raise_error(MiniTarball::PathTraversalError)
+    end
+
+    it "rejects nil names" do
+      expect { described_class.validate_name!(nil) }.to raise_error(MiniTarball::PathTraversalError)
+    end
+  end
 end
