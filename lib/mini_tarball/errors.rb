@@ -44,4 +44,30 @@ module MiniTarball
   # Raised when a numeric value is too large to encode in the tar header field.
   class ValueTooLargeError < Error
   end
+
+  # Raised when an extraction path would escape the destination directory.
+  class PathTraversalError < Error
+  end
+
+  # Raised when reading a tar archive that is incomplete or corrupted.
+  class TruncatedArchiveError < Error
+    def initialize(msg = "Archive is truncated or incomplete")
+      super
+    end
+  end
+
+  # Raised when a tar header cannot be parsed.
+  class InvalidHeaderError < Error
+  end
+
+  # Raised when a tar header checksum does not match.
+  class ChecksumMismatchError < InvalidHeaderError
+    def initialize(expected:, actual:)
+      super("Checksum mismatch: expected #{expected}, got #{actual}")
+    end
+  end
+
+  # Raised when archive limits are exceeded (max file size, total size, entry count).
+  class ArchiveLimitError < Error
+  end
 end

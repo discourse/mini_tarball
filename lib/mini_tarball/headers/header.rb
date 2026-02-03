@@ -13,6 +13,8 @@ module MiniTarball
     TYPE_HARDLINK = "1"
     TYPE_SYMLINK = "2"
     TYPE_DIRECTORY = "5"
+    TYPE_PAX_EXTENDED = "x"
+    TYPE_PAX_GLOBAL = "g"
     # @!endgroup
 
     TYPE_LONG_LINK = "L"
