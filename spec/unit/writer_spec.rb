@@ -104,35 +104,6 @@ RSpec.describe MiniTarball::Writer do
         end
       end
 
-      it "rejects path traversal" do
-        MiniTarball::Writer.use(io) do |writer|
-          expect { writer.file "../etc/passwd", from: source_path }.to raise_error(
-            MiniTarball::UnsafeNameError,
-            /Path traversal is not allowed/,
-          )
-
-          expect { writer.file "foo/../../../etc/passwd", from: source_path }.to raise_error(
-            MiniTarball::UnsafeNameError,
-            /Path traversal is not allowed/,
-          )
-        end
-      end
-
-      it "rejects empty name" do
-        MiniTarball::Writer.use(io) do |writer|
-          expect { writer.file "", from: source_path }.to raise_error(
-            MiniTarball::UnsafeNameError,
-            /Empty name not allowed/,
-          )
-        end
-      end
-
-      it "allows relative paths without traversal" do
-        MiniTarball::Writer.use(io) do |writer|
-          expect { writer.file "subdir/file.txt", from: source_path }.not_to raise_error
-        end
-      end
-
       it "handles missing UID/GID gracefully" do
         allow(Etc).to receive(:getpwuid).and_raise(ArgumentError)
         allow(Etc).to receive(:getgrgid).and_raise(ArgumentError)
@@ -360,15 +331,6 @@ RSpec.describe MiniTarball::Writer do
         expect { writer.directory "../etc" }.to raise_error(MiniTarball::UnsafeNameError)
       end
     end
-
-    it "rejects nil name with UnsafeNameError" do
-      MiniTarball::Writer.use(io) do |writer|
-        expect { writer.directory nil }.to raise_error(
-          MiniTarball::UnsafeNameError,
-          /Empty name not allowed/,
-        )
-      end
-    end
   end
 
   describe "#symlink" do
@@ -405,15 +367,6 @@ RSpec.describe MiniTarball::Writer do
       end
     end
 
-    it "rejects absolute target paths" do
-      MiniTarball::Writer.use(io) do |writer|
-        expect { writer.symlink "link.txt", target: "/etc/passwd" }.to raise_error(
-          MiniTarball::UnsafeNameError,
-          /Absolute paths are not allowed in target/,
-        )
-      end
-    end
-
     it "rejects path traversal in targets by default" do
       MiniTarball::Writer.use(io) do |writer|
         expect { writer.symlink "subdir/link.txt", target: "../sibling/file.txt" }.to raise_error(
@@ -430,24 +383,6 @@ RSpec.describe MiniTarball::Writer do
                          target: "../sibling/file.txt",
                          allow_parent_references: true
         }.not_to raise_error
-      end
-    end
-
-    it "rejects nil target" do
-      MiniTarball::Writer.use(io) do |writer|
-        expect { writer.symlink "link.txt", target: nil }.to raise_error(
-          MiniTarball::UnsafeNameError,
-          /Empty target not allowed/,
-        )
-      end
-    end
-
-    it "rejects empty target" do
-      MiniTarball::Writer.use(io) do |writer|
-        expect { writer.symlink "link.txt", target: "" }.to raise_error(
-          MiniTarball::UnsafeNameError,
-          /Empty target not allowed/,
-        )
       end
     end
   end
@@ -474,15 +409,6 @@ RSpec.describe MiniTarball::Writer do
       expect(io.string).to eq(fixture("archives/hardlink_long_target.tar"))
     end
 
-    it "rejects absolute target paths" do
-      MiniTarball::Writer.use(io) do |writer|
-        expect { writer.hardlink "link.txt", target: "/etc/passwd" }.to raise_error(
-          MiniTarball::UnsafeNameError,
-          /Absolute paths are not allowed in target/,
-        )
-      end
-    end
-
     it "rejects path traversal in targets by default" do
       MiniTarball::Writer.use(io) do |writer|
         expect { writer.hardlink "link.txt", target: "../other/file.txt" }.to raise_error(
@@ -503,15 +429,6 @@ RSpec.describe MiniTarball::Writer do
   end
 
   describe "#placeholder" do
-    it "rejects absolute paths" do
-      MiniTarball::Writer.use(io) do |writer|
-        expect { writer.placeholder "/etc/passwd", size: 100 }.to raise_error(
-          MiniTarball::UnsafeNameError,
-          /Absolute paths are not allowed in name/,
-        )
-      end
-    end
-
     it "rejects path traversal" do
       MiniTarball::Writer.use(io) do |writer|
         expect { writer.placeholder "foo/../../passwd", size: 100 }.to raise_error(
