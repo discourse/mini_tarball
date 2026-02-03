@@ -3,13 +3,12 @@
 RSpec.describe MiniTarball::ContentWriter do
   let(:io) { StringIO.new.binmode }
   let(:header_writer) { MiniTarball::HeaderWriter.new(MiniTarball::WriteOnlyStream.new(io)) }
+  let(:content_writer) { described_class.new(io, header_writer) }
   let(:attrs) { MiniTarball::EntryAttributes.with_file_defaults }
 
   describe "#write_capped" do
     it "pads remaining bytes with NULs" do
-      described_class
-        .new(io, header_writer)
-        .write_capped(io, size: 10) { |stream| stream.write("abc") }
+      content_writer.write_capped(io, size: 10) { |stream| stream.write("abc") }
 
       expect(io.string).to eq("abc" + ("\0" * 7))
     end
@@ -19,7 +18,7 @@ RSpec.describe MiniTarball::ContentWriter do
     it "pads to the next 512-byte boundary" do
       io.write("x" * 600)
 
-      described_class.new(io, header_writer).write_padding
+      content_writer.write_padding
 
       expect(io.string.bytesize).to eq(1024)
       expect(io.string[600, 424]).to eq("\0" * 424)
@@ -28,12 +27,12 @@ RSpec.describe MiniTarball::ContentWriter do
 
   describe "#write_file" do
     it "writes header, content, and padding" do
-      described_class
-        .new(io, header_writer)
-        .write_file("test.txt", 3, attrs) { |stream| stream.write("abc") }
+      content_writer.write_file("test.txt", 3, attrs) { |stream| stream.write("abc") }
 
       expect(io.string.bytesize).to eq(1024)
+      expect(io.string).to have_tar_header_field(:name, "test.txt")
       expect(io.string[512, 3]).to eq("abc")
+      expect(io.string[515, 509]).to eq("\0" * 509)
     end
   end
 end
