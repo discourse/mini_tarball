@@ -41,26 +41,16 @@ RSpec.describe MiniTarball::Header do
     end
 
     it "produces a valid checksum" do
-      attrs =
-        MiniTarball::EntryAttributes.new(
-          mode: 0644,
-          uid: nil,
-          gid: nil,
-          uname: nil,
-          gname: nil,
-          mtime: nil,
-        )
-      header = described_class.new(name: "test.txt", size: 1024, attrs:)
-      binary = header.to_binary
+      binary = described_class.new(name: "test.txt", size: 1024).to_binary
+      field = TarHeaderFormat.field(:checksum)
 
-      # Checksum is calculated with the checksum field treated as spaces
-      checksum_offset = 148
-      bytes_with_spaces = binary[0, checksum_offset] + (" " * 8) + binary[checksum_offset + 8..]
-      expected_checksum = bytes_with_spaces.bytes.sum
+      # Tar checksum = sum of all bytes, with checksum field treated as 8 spaces
+      header_with_blank_checksum = binary.dup
+      header_with_blank_checksum[field["offset"], field["length"]] = " " * 8
+      expected = header_with_blank_checksum.bytes.sum
 
-      # Extract stored checksum (octal string at offset 148, 8 bytes)
-      stored_checksum = binary[checksum_offset, 8].strip.to_i(8)
-      expect(stored_checksum).to eq(expected_checksum)
+      stored = binary[field["offset"], field["length"]].strip.to_i(8)
+      expect(stored).to eq(expected)
     end
 
     it "encodes mode as octal" do
