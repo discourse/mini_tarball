@@ -117,7 +117,7 @@ RSpec.describe MiniTarball::Writer do
         MiniTarball::Writer.use(io) do |writer|
           expect { writer.file "/etc/passwd", from: source_path }.to raise_error(
             MiniTarball::UnsafeNameError,
-            /Absolute paths are not allowed/,
+            /Absolute paths are not allowed in name/,
           )
         end
       end
@@ -484,7 +484,7 @@ RSpec.describe MiniTarball::Writer do
       MiniTarball::Writer.use(io) do |writer|
         expect { writer.symlink "link.txt", target: "/etc/passwd" }.to raise_error(
           MiniTarball::UnsafeNameError,
-          /Absolute target paths are not allowed/,
+          /Absolute paths are not allowed in target/,
         )
       end
     end
@@ -562,7 +562,7 @@ RSpec.describe MiniTarball::Writer do
       MiniTarball::Writer.use(io) do |writer|
         expect { writer.hardlink "link.txt", target: "/etc/passwd" }.to raise_error(
           MiniTarball::UnsafeNameError,
-          /Absolute target paths are not allowed/,
+          /Absolute paths are not allowed in target/,
         )
       end
     end
@@ -591,7 +591,7 @@ RSpec.describe MiniTarball::Writer do
       MiniTarball::Writer.use(io) do |writer|
         expect { writer.placeholder "/etc/passwd", size: 100 }.to raise_error(
           MiniTarball::UnsafeNameError,
-          /Absolute paths are not allowed/,
+          /Absolute paths are not allowed in name/,
         )
       end
     end

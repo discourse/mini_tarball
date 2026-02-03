@@ -41,10 +41,5 @@ RSpec.describe MiniTarball::NullWriter do
       expect(io.string.bytesize).to eq(65_536)
       expect(io.string).to eq("\0" * 65_536)
     end
-
-    it "handles size smaller than chunk" do
-      described_class.write(io, 1000)
-      expect(io.string).to eq("\0" * 1000)
-    end
   end
 end

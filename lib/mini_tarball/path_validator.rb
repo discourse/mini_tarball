@@ -12,10 +12,7 @@ module MiniTarball
     # @return [void]
     # @raise [UnsafeNameError] if name is empty, absolute, contains traversal, or has NUL bytes
     def self.validate_name!(name)
-      raise UnsafeNameError, "Empty name not allowed" if name.nil? || name.empty?
-      raise UnsafeNameError, "NUL bytes not allowed in name" if name.include?("\0")
-      raise UnsafeNameError, "Absolute paths are not allowed: #{name}" if absolute_path?(name)
-      raise UnsafeNameError, "Path traversal is not allowed: #{name}" if path_traversal?(name)
+      validate_path!(name, label: "name")
     end
 
     # Validates a symlink/hardlink target.
@@ -26,13 +23,17 @@ module MiniTarball
     # @raise [UnsafeNameError] if target is empty, absolute, has NUL bytes, or contains
     #   path traversal (unless allow_parent_references is true)
     def self.validate_target!(target, allow_parent_references: false)
-      raise UnsafeNameError, "Empty target not allowed" if target.nil? || target.empty?
-      raise UnsafeNameError, "NUL bytes not allowed in target" if target.include?("\0")
-      if absolute_path?(target)
-        raise UnsafeNameError, "Absolute target paths are not allowed: #{target}"
+      validate_path!(target, label: "target", allow_parent_references:)
+    end
+
+    private_class_method def self.validate_path!(value, label:, allow_parent_references: false)
+      raise UnsafeNameError, "Empty #{label} not allowed" if value.nil? || value.empty?
+      raise UnsafeNameError, "NUL bytes not allowed in #{label}" if value.include?("\0")
+      if absolute_path?(value)
+        raise UnsafeNameError, "Absolute paths are not allowed in #{label}: #{value}"
       end
-      if !allow_parent_references && path_traversal?(target)
-        raise UnsafeNameError, "Path traversal is not allowed in target: #{target}"
+      if !allow_parent_references && path_traversal?(value)
+        raise UnsafeNameError, "Path traversal is not allowed in #{label}: #{value}"
       end
     end
 
