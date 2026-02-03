@@ -1,0 +1,88 @@
+# GNU tar header format specification
+# Reference: https://www.gnu.org/software/tar/manual/html_chapter/Tar-Internals.html
+#
+# This file serves as an independent source of truth for test assertions,
+# separate from the implementation in lib/mini_tarball/header.rb.
+
+block_size: 512
+
+fields:
+  name:
+    offset: 0
+    length: 100
+    type: chars
+
+  mode:
+    offset: 100
+    length: 8
+    type: mode
+
+  uid:
+    offset: 108
+    length: 8
+    type: number
+
+  gid:
+    offset: 116
+    length: 8
+    type: number
+
+  size:
+    offset: 124
+    length: 12
+    type: number
+
+  mtime:
+    offset: 136
+    length: 12
+    type: number
+
+  checksum:
+    offset: 148
+    length: 8
+    type: checksum
+
+  typeflag:
+    offset: 156
+    length: 1
+    type: chars
+
+  linkname:
+    offset: 157
+    length: 100
+    type: chars
+
+  magic:
+    offset: 257
+    length: 6
+    type: chars
+
+  version:
+    offset: 263
+    length: 2
+    type: chars
+
+  uname:
+    offset: 265
+    length: 32
+    type: chars
+
+  gname:
+    offset: 297
+    length: 32
+    type: chars
+
+  devmajor:
+    offset: 329
+    length: 8
+    type: number
+
+  devminor:
+    offset: 337
+    length: 8
+    type: number
+
+  prefix:
+    offset: 345
+    length: 155
+    type: chars

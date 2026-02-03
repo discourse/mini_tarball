@@ -1,16 +1,22 @@
 # frozen_string_literal: true
 
 module MiniTarball
+  # Encodes header field values into binary format.
+  #
+  # @api private
   class HeaderFields
-    def self.pack_format
-      @pack_format ||= Header::FIELDS.values.map { |field| "a#{field[:length]}" }.join("")
-    end
+    PACK_FORMAT = Header::FIELDS.values.map { |field| "a#{field[:length]}" }.join("").freeze
+    private_constant :PACK_FORMAT
 
+    # @param header [Header] the header to encode
     def initialize(header)
       @header = header
       @values_by_field = {}
     end
 
+    # Encodes all fields and returns the binary header block.
+    #
+    # @return [String] 512-byte binary header
     def to_binary
       Header::FIELDS.each_key do |name|
         value = @header.value_of(name)
@@ -21,30 +27,29 @@ module MiniTarball
       HeaderFormatter.zero_pad(encode_fields)
     end
 
-    # :reek:DuplicateMethodCall
-    def set_value(name, value)
+    private def set_value(name, value)
       field = Header::FIELDS[name]
 
-      case field[:type]
-      when :number
-        @values_by_field[name] = HeaderFormatter.format_number(value, field[:length])
-      when :mode
-        @values_by_field[name] = HeaderFormatter.format_permissions(value, field[:length])
-      when :checksum
-        @values_by_field[name] = HeaderFormatter.format_checksum(value)
+      @values_by_field[name] = case field[:type]
+      in :number
+        HeaderFormatter.format_number(value, field[:length])
+      in :mode
+        HeaderFormatter.format_permissions(value, field[:length])
+      in :checksum
+        HeaderFormatter.format_checksum(value)
       else
-        @values_by_field[name] = value
+        value
       end
     end
 
-    def update_checksum
+    private def update_checksum
       checksum = encode_fields.unpack("C*").sum
       set_value(:checksum, checksum)
     end
 
     private def encode_fields
       values = @values_by_field.values
-      values.pack(HeaderFields.pack_format)
+      values.pack(PACK_FORMAT)
     end
   end
 end
