@@ -39,6 +39,7 @@ RSpec.describe MiniTarball::Placeholder do
           placeholder.fill from: tempfile.path
         end
 
+        expect(io.string).to have_tar_header_field(:name, "test.txt")
         expect(io.string[512, 12]).to eq("file content")
       end
     end
@@ -52,6 +53,7 @@ RSpec.describe MiniTarball::Placeholder do
         end
       end
 
+      expect(io.string).to have_tar_header_field(:name, "test.txt")
       expect(io.string[512, 16]).to eq("streamed content")
     end
 
@@ -193,7 +195,7 @@ RSpec.describe MiniTarball::Placeholder do
           placeholder.fill from: tempfile.path
         end
 
-        expect(io.string).to have_tar_header_field(:mode, format("%07o", stat.mode & 0o7777))
+        expect(io.string).to have_tar_header_field(:mode, "0000640")
         expect(io.string).to have_tar_header_field(:uid, format("%07o", stat.uid))
         expect(io.string).to have_tar_header_field(:gid, format("%07o", stat.gid))
         expect(io.string).to have_tar_header_field(:uname, "alice")
@@ -232,13 +234,13 @@ RSpec.describe MiniTarball::Placeholder do
 
   describe "#filled?" do
     it "returns false before filling" do
-      writer = MiniTarball::Writer.new(io)
-      placeholder = writer.placeholder "test.txt", size: 100
+      MiniTarball::Writer.use(io) do |writer|
+        placeholder = writer.placeholder "test.txt", size: 100
 
-      expect(placeholder.filled?).to be false
+        expect(placeholder.filled?).to be false
 
-      placeholder.fill content: "x"
-      writer.close
+        placeholder.fill content: "x"
+      end
     end
 
     it "returns true after filling" do
@@ -253,13 +255,13 @@ RSpec.describe MiniTarball::Placeholder do
 
   describe "#name" do
     it "returns the reserved name" do
-      writer = MiniTarball::Writer.new(io)
-      placeholder = writer.placeholder "my_file.txt", size: 100
+      MiniTarball::Writer.use(io) do |writer|
+        placeholder = writer.placeholder "my_file.txt", size: 100
 
-      expect(placeholder.name).to eq("my_file.txt")
+        expect(placeholder.name).to eq("my_file.txt")
 
-      placeholder.fill content: "x"
-      writer.close
+        placeholder.fill content: "x"
+      end
     end
   end
 end
