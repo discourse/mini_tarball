@@ -12,14 +12,13 @@ RSpec.describe MiniTarball::HeaderFields do
       expect(binary.encoding).to eq(Encoding::BINARY)
     end
 
-    it "encodes the name field at the correct position" do
+    it "encodes the name field" do
       header = MiniTarball::Header.new(name: "myfile.txt", size: 0)
       fields = described_class.new(header)
 
       binary = fields.to_binary
 
-      # Name field is at offset 0, length 100
-      expect(binary[0, 10]).to eq("myfile.txt")
+      expect(binary).to have_tar_header_field(:name, "myfile.txt")
     end
 
     it "encodes numeric fields in octal" do
@@ -37,10 +36,8 @@ RSpec.describe MiniTarball::HeaderFields do
 
       binary = fields.to_binary
 
-      # Mode field is at offset 100, length 8
-      expect(binary[100, 7]).to eq("0000644")
-      # Size field is at offset 124, length 12
-      expect(binary[124, 11]).to eq("00000002322") # 1234 in octal
+      expect(binary).to have_tar_header_field(:mode, 0644)
+      expect(binary).to have_tar_header_field(:size, 1234)
     end
 
     it "computes and includes the checksum" do
@@ -88,10 +85,10 @@ RSpec.describe MiniTarball::HeaderFields do
       binary = fields.to_binary
 
       expect(binary.bytesize).to eq(512)
-      expect(binary[0, 8]).to eq("file.txt")
-      expect(binary[100, 7]).to eq("0000755")
-      expect(binary[265, 4]).to eq("user")
-      expect(binary[297, 5]).to eq("group")
+      expect(binary).to have_tar_header_field(:name, "file.txt")
+      expect(binary).to have_tar_header_field(:mode, 0755)
+      expect(binary).to have_tar_header_field(:uname, "user")
+      expect(binary).to have_tar_header_field(:gname, "group")
     end
   end
 end
