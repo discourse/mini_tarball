@@ -13,6 +13,7 @@ class FixtureGenerator
     mtime: "2021-02-15T20:11:34Z",
     mode: 0644,
   }.freeze
+  LONG_TARGET = ("very/long/path/" + "a" * 100).freeze
 
   DEFAULT_OUTPUT_DIR = File.expand_path(__dir__).freeze
 
@@ -35,7 +36,7 @@ class FixtureGenerator
   def generate_headers
     # Use /var/tmp if available (usually disk-backed, not tmpfs) for large sparse files
     tmpdir_parent = File.directory?("/var/tmp") ? "/var/tmp" : nil
-    Dir.mktmpdir("mini_tarball_fixtures", tmpdir_parent) do |tmpdir|
+    with_tmpdir("mini_tarball_fixtures", tmpdir_parent) do |tmpdir|
       Dir.chdir(tmpdir) do
         generate_small_file_header
         generate_large_file_header
@@ -80,6 +81,10 @@ class FixtureGenerator
       )
 
       generate_archive("small_file_in_large_placeholder.tar", %w[file1.txt file2.txt], tmpdir)
+
+      generate_symlink_long_target_archive(tmpdir)
+      generate_hardlink_long_target_archive(tmpdir)
+      generate_mixed_entries_archive(tmpdir)
     end
   end
 
@@ -260,6 +265,45 @@ class FixtureGenerator
       **STANDARD_OPTIONS,
     )
     puts "Generated #{name}"
+  end
+
+  def with_tmpdir(prefix, parent)
+    Dir.mktmpdir(prefix, parent) { |tmpdir| yield tmpdir }
+  rescue Errno::EACCES
+    Dir.mktmpdir(prefix) { |tmpdir| yield tmpdir }
+  end
+
+  def generate_symlink_long_target_archive(tmpdir)
+    archive_dir = File.join(tmpdir, "symlink_long_target")
+    FileUtils.mkdir_p(archive_dir)
+
+    FileUtils.mkdir_p(File.join(archive_dir, File.dirname(LONG_TARGET)))
+    File.binwrite(File.join(archive_dir, LONG_TARGET), "content")
+    File.symlink(LONG_TARGET, File.join(archive_dir, "link.txt"))
+
+    generate_archive("symlink_long_target.tar", [LONG_TARGET, "link.txt"], archive_dir)
+  end
+
+  def generate_hardlink_long_target_archive(tmpdir)
+    archive_dir = File.join(tmpdir, "hardlink_long_target")
+    FileUtils.mkdir_p(archive_dir)
+
+    FileUtils.mkdir_p(File.join(archive_dir, File.dirname(LONG_TARGET)))
+    File.binwrite(File.join(archive_dir, LONG_TARGET), "content")
+    File.link(File.join(archive_dir, LONG_TARGET), File.join(archive_dir, "link.txt"))
+
+    generate_archive("hardlink_long_target.tar", [LONG_TARGET, "link.txt"], archive_dir)
+  end
+
+  def generate_mixed_entries_archive(tmpdir)
+    archive_dir = File.join(tmpdir, "mixed_entries")
+    FileUtils.mkdir_p(archive_dir)
+
+    File.binwrite(File.join(archive_dir, "file.txt"), "content")
+    File.symlink("file.txt", File.join(archive_dir, "link.txt"))
+    File.link(File.join(archive_dir, "file.txt"), File.join(archive_dir, "hardlink.txt"))
+
+    generate_archive("mixed_entries.tar", %w[file.txt link.txt hardlink.txt], archive_dir)
   end
 
   def create_file(path, content)

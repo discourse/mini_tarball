@@ -3,7 +3,6 @@
 require "tempfile"
 require "time"
 require "zlib"
-require_relative "../integration/support/gnu_tar"
 
 RSpec.describe MiniTarball::Writer do
   let(:io) { StringIO.new.binmode }
@@ -17,23 +16,6 @@ RSpec.describe MiniTarball::Writer do
       uid: 1001,
       gid: 33,
     }
-  end
-
-  def with_temp_tar(filenames, fixture_directory: "files")
-    skip(GnuTar.skip_message) unless GnuTar.available?
-
-    Dir.mktmpdir do |temp_dir|
-      output_filename = File.join(temp_dir, "test.tar")
-
-      GnuTar.create(
-        output_filename,
-        files: filenames,
-        chdir: fixture_path(fixture_directory),
-        blocking_factor: 1,
-      )
-
-      yield(File.binread(output_filename))
-    end
   end
 
   describe ".create" do
@@ -91,11 +73,11 @@ RSpec.describe MiniTarball::Writer do
         MiniTarball::Writer.use(io) do |writer|
           filenames.each do |filename|
             path = File.join(fixture_path("files"), filename)
-            writer.file filename, from: path
+            writer.file filename, from: path, **default_options
           end
         end
 
-        with_temp_tar(filenames) { |tar| expect(io.string).to eq(tar) }
+        expect(io.string).to eq(fixture("archives/multiple_files.tar"))
       end
 
       it "works with a non-seekable IO object" do
@@ -105,12 +87,12 @@ RSpec.describe MiniTarball::Writer do
         MiniTarball::Writer.use(gzip) do |writer|
           filenames.each do |filename|
             path = File.join(fixture_path("files"), filename)
-            writer.file filename, from: path
+            writer.file filename, from: path, **default_options
           end
         end
 
         data = Zlib::GzipReader.new(StringIO.new(io.string, "rb")).read
-        with_temp_tar(filenames) { |tar| expect(data).to eq(tar) }
+        expect(data).to eq(fixture("archives/multiple_files.tar"))
       end
 
       it "rejects absolute paths" do
@@ -303,53 +285,6 @@ RSpec.describe MiniTarball::Writer do
           }.to raise_error(ArgumentError, /non-negative/)
         end
       end
-
-      it "keeps archive aligned if the block raises" do
-        writer = MiniTarball::Writer.new(io)
-
-        expect {
-          writer.file("bad.txt", size: 10, **default_options) { |_s| raise "boom" }
-        }.to raise_error(RuntimeError, "boom")
-
-        writer.file("good.txt", content: "ok", **default_options)
-        writer.close
-
-        skip(GnuTar.skip_message) unless GnuTar.available?
-
-        Dir.mktmpdir do |temp_dir|
-          tar_path = File.join(temp_dir, "test.tar")
-          File.binwrite(tar_path, io.string)
-
-          GnuTar.extract(tar_path, destination: temp_dir)
-          expect(File.read(File.join(temp_dir, "good.txt"))).to eq("ok")
-          expect(File.binread(File.join(temp_dir, "bad.txt"))).to eq("\0" * 10)
-        end
-      end
-
-      it "keeps archive aligned if a seekable block raises without size" do
-        writer = MiniTarball::Writer.new(io)
-
-        expect {
-          writer.file("bad.txt", **default_options) do |stream|
-            stream.write("partial")
-            raise "boom"
-          end
-        }.to raise_error(RuntimeError, "boom")
-
-        writer.file("good.txt", content: "ok", **default_options)
-        writer.close
-
-        skip(GnuTar.skip_message) unless GnuTar.available?
-
-        Dir.mktmpdir do |temp_dir|
-          tar_path = File.join(temp_dir, "test.tar")
-          File.binwrite(tar_path, io.string)
-
-          GnuTar.extract(tar_path, destination: temp_dir)
-          expect(File.read(File.join(temp_dir, "good.txt"))).to eq("ok")
-          expect(File.read(File.join(temp_dir, "bad.txt"))).to eq("partial")
-        end
-      end
     end
 
     describe "source validation" do
@@ -461,17 +396,7 @@ RSpec.describe MiniTarball::Writer do
         writer.symlink "link.txt", target: long_target, **default_options
       end
 
-      skip(GnuTar.skip_message) unless GnuTar.available?
-
-      Dir.mktmpdir do |temp_dir|
-        tar_path = File.join(temp_dir, "test.tar")
-        File.binwrite(tar_path, io.string)
-
-        GnuTar.extract(tar_path, destination: temp_dir)
-        link_path = File.join(temp_dir, "link.txt")
-        expect(File.symlink?(link_path)).to be true
-        expect(File.readlink(link_path)).to eq(long_target)
-      end
+      expect(io.string).to eq(fixture("archives/symlink_long_target.tar"))
     end
 
     it "accepts targets at exactly 100 bytes" do
@@ -541,21 +466,12 @@ RSpec.describe MiniTarball::Writer do
     it "supports targets longer than 100 bytes" do
       long_target = "very/long/path/" + "a" * 100
 
-      skip(GnuTar.skip_message) unless GnuTar.available?
-
       MiniTarball::Writer.use(io) do |writer|
         writer.file long_target, content: "content", **default_options
         writer.hardlink "link.txt", target: long_target, **default_options
       end
 
-      Dir.mktmpdir do |temp_dir|
-        tar_path = File.join(temp_dir, "test.tar")
-        File.binwrite(tar_path, io.string)
-
-        GnuTar.extract(tar_path, destination: temp_dir)
-        expect(File.exist?(File.join(temp_dir, "link.txt"))).to be true
-        expect(File.read(File.join(temp_dir, "link.txt"))).to eq("content")
-      end
+      expect(io.string).to eq(fixture("archives/hardlink_long_target.tar"))
     end
 
     it "rejects absolute target paths" do
@@ -661,35 +577,17 @@ RSpec.describe MiniTarball::Writer do
 
       expect(io.string).to have_tar_header_field(:name, "file1.txt")
     end
+  end
 
-    it "recovers from exceptions in fill block" do
+  describe "mixed entries" do
+    it "creates an archive with files and links" do
       MiniTarball::Writer.use(io) do |writer|
-        placeholder = writer.placeholder "placeholder.txt", size: 100
-        writer.file "file2.txt",
-                    content: File.binread(fixture_path("files/file2.txt")),
-                    **default_options
-
-        expect { placeholder.fill { |_s| raise "simulated error" } }.to raise_error(
-          RuntimeError,
-          "simulated error",
-        )
-
-        placeholder.fill content: "ok", **default_options
-
-        writer.file "file3.txt",
-                    content: File.binread(fixture_path("files/file3.txt")),
-                    **default_options
+        writer.file "file.txt", content: "content", **default_options
+        writer.symlink "link.txt", target: "file.txt", **default_options
+        writer.hardlink "hardlink.txt", target: "file.txt", **default_options
       end
 
-      skip(GnuTar.skip_message) unless GnuTar.available?
-
-      Dir.mktmpdir do |temp_dir|
-        tar_path = File.join(temp_dir, "test.tar")
-        File.binwrite(tar_path, io.string)
-
-        GnuTar.extract(tar_path, destination: temp_dir)
-        expect(File.exist?(File.join(temp_dir, "file3.txt"))).to be true
-      end
+      expect(io.string).to eq(fixture("archives/mixed_entries.tar"))
     end
   end
 

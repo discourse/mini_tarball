@@ -40,6 +40,10 @@ A minimal Ruby implementation of the GNU Tar format for writing tar archives wit
 - Test edge cases and boundaries (e.g., filename at exactly 100 bytes)
 - Test error conditions, not just happy paths
 - Specs should be independent and not rely on execution order
+- Unit specs live in `spec/unit` and should avoid external tar binaries; use fixtures in `spec/fixtures` for byte-level assertions
+- Integration specs live in `spec/integration` and may use external extractors (GNU tar/bsdtar) via `spec/integration_helper.rb`
+- Prefer fixtures for deterministic byte comparisons; prefer integration tests for extraction behavior or interoperability checks
+- Regenerate fixtures with `bundle exec rake fixtures:generate` when output bytes change; CI uses `bundle exec rake fixtures:verify`
 - Run `bundle exec rspec` after changes
 - Format with `bundle exec rake fix` before committing
 
