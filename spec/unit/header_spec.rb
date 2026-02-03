@@ -37,7 +37,7 @@ RSpec.describe MiniTarball::Header do
 
     it "encodes the magic string" do
       header = described_class.new(name: "test.txt")
-      expect(header.to_binary).to have_tar_header_field(:magic, "ustar")
+      expect(header.to_binary).to have_tar_header_field(:magic, "ustar ")
     end
 
     it "produces a valid checksum" do

@@ -64,8 +64,8 @@ RSpec::Matchers.define :have_tar_header_field do |field_name, expected_value|
       return raw.delete("\0").strip if expected_value.is_a?(String)
       decode_number(raw)
     else
-      # String fields: strip trailing NULs and spaces
-      raw.sub(/[\0 ]+\z/, "")
+      # String fields: strip trailing NULs
+      raw.delete("\0")
     end
   end
 
