@@ -49,8 +49,7 @@ RSpec.describe MiniTarball::Header do
       header_with_blank_checksum[field["offset"], field["length"]] = " " * 8
       expected = header_with_blank_checksum.bytes.sum
 
-      stored = binary[field["offset"], field["length"]].strip.to_i(8)
-      expect(stored).to eq(expected)
+      expect(binary).to have_tar_header_field(:checksum, expected)
     end
 
     it "encodes mode as octal" do
@@ -87,6 +86,67 @@ RSpec.describe MiniTarball::Header do
       binary = header.to_binary
       expect(binary).to have_tar_header_field(:typeflag, "2")
       expect(binary).to have_tar_header_field(:linkname, "target.txt")
+    end
+
+    it "encodes uid and gid" do
+      attrs =
+        MiniTarball::EntryAttributes.new(
+          mode: 0644,
+          uid: 1000,
+          gid: 500,
+          uname: nil,
+          gname: nil,
+          mtime: nil,
+        )
+      binary = described_class.new(name: "test.txt", attrs:).to_binary
+      expect(binary).to have_tar_header_field(:uid, 1000)
+      expect(binary).to have_tar_header_field(:gid, 500)
+    end
+
+    it "encodes uname and gname" do
+      attrs =
+        MiniTarball::EntryAttributes.new(
+          mode: 0644,
+          uid: nil,
+          gid: nil,
+          uname: "alice",
+          gname: "staff",
+          mtime: nil,
+        )
+      binary = described_class.new(name: "test.txt", attrs:).to_binary
+      expect(binary).to have_tar_header_field(:uname, "alice")
+      expect(binary).to have_tar_header_field(:gname, "staff")
+    end
+
+    it "encodes mtime as unix timestamp" do
+      mtime = Time.utc(2024, 6, 15, 12, 0, 0)
+      attrs =
+        MiniTarball::EntryAttributes.new(
+          mode: 0644,
+          uid: nil,
+          gid: nil,
+          uname: nil,
+          gname: nil,
+          mtime:,
+        )
+      binary = described_class.new(name: "test.txt", attrs:).to_binary
+      expect(binary).to have_tar_header_field(:mtime, mtime.to_i)
+    end
+
+    it "encodes version" do
+      binary = described_class.new(name: "test.txt").to_binary
+      expect(binary).to have_tar_header_field(:version, " ")
+    end
+
+    it "leaves devmajor and devminor empty" do
+      binary = described_class.new(name: "test.txt").to_binary
+      expect(binary).to have_tar_header_field(:devmajor, 0)
+      expect(binary).to have_tar_header_field(:devminor, 0)
+    end
+
+    it "leaves prefix empty" do
+      binary = described_class.new(name: "test.txt").to_binary
+      expect(binary).to have_tar_header_field(:prefix, "")
     end
   end
 
