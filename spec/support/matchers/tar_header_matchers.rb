@@ -1,5 +1,30 @@
 # frozen_string_literal: true
 
+require "yaml"
+
+# Loads and caches the tar header format specification from the fixture file.
+# This provides an independent source of truth for test assertions, separate
+# from the implementation in lib/mini_tarball/header.rb.
+module TarHeaderFormat
+  FIXTURE_PATH = File.expand_path("../../fixtures/tar_header_format.yml", __dir__).freeze
+
+  class << self
+    def block_size
+      format["block_size"]
+    end
+
+    def field(name)
+      format["fields"][name.to_s] or raise ArgumentError, "Unknown tar header field: #{name}"
+    end
+
+    private
+
+    def format
+      @format ||= YAML.load_file(FIXTURE_PATH)
+    end
+  end
+end
+
 # Custom RSpec matcher for verifying tar header fields.
 # Usage: expect(tar_data).to have_tar_header_field(:name, "file.txt")
 RSpec::Matchers.define :have_tar_header_field do |field_name, expected_value|
@@ -19,29 +44,22 @@ RSpec::Matchers.define :have_tar_header_field do |field_name, expected_value|
 
   description { "have tar header field :#{field_name} equal to #{expected_value.inspect}" }
 
-  # Locates and extracts a field from the tar header by walking through
-  # FIELDS definitions to calculate the correct byte offset.
+  # Locates and extracts a field from the tar header using the fixture-defined
+  # offset and length, independent of the implementation's FIELDS constant.
   def extract_field(tar_data, field_name, expected_value)
-    header_data = tar_data[0, MiniTarball::Header::BLOCK_SIZE]
-    offset = 0
+    header_data = tar_data[0, TarHeaderFormat.block_size]
+    field = TarHeaderFormat.field(field_name)
 
-    MiniTarball::Header::FIELDS.each do |name, field|
-      if name == field_name
-        raw = header_data[offset, field[:length]]
-        return parse_field(raw, field, expected_value)
-      end
-      offset += field[:length]
-    end
-
-    raise ArgumentError, "Unknown tar header field: #{field_name}"
+    raw = header_data[field["offset"], field["length"]]
+    parse_field(raw, field, expected_value)
   end
 
   # Converts raw bytes to a comparable value based on field type.
   # When expected_value is a String, returns the raw octal representation
   # to allow testing the encoded format directly.
   def parse_field(raw, field, expected_value)
-    case field[:type]
-    when :number, :mode, :checksum
+    case field["type"]
+    when "number", "mode", "checksum"
       # Allow string comparison for verifying raw octal encoding
       return raw.delete("\0").strip if expected_value.is_a?(String)
       decode_number(raw)
