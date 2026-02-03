@@ -58,8 +58,7 @@ RSpec.describe MiniTarball::HeaderFields do
       binary = fields.to_binary
 
       expect(binary.bytesize).to eq(512)
-      # Trailing bytes should be NUL
-      expect(binary[-10, 10]).to eq("\0" * 10)
+      expect(binary).to have_null_padding(at: 502, bytes: 10)
     end
 
     it "handles all tar header field types" do

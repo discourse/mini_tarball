@@ -21,7 +21,7 @@ RSpec.describe MiniTarball::ContentWriter do
       content_writer.write_padding
 
       expect(io.string.bytesize).to eq(1024)
-      expect(io.string[600, 424]).to eq("\0" * 424)
+      expect(io.string).to have_null_padding(at: 600, bytes: 424)
     end
   end
 
@@ -32,7 +32,7 @@ RSpec.describe MiniTarball::ContentWriter do
       expect(io.string.bytesize).to eq(1024)
       expect(io.string).to have_tar_header_field(:name, "test.txt")
       expect(io.string[512, 3]).to eq("abc")
-      expect(io.string[515, 509]).to eq("\0" * 509)
+      expect(io.string).to have_null_padding(at: 515, bytes: 509)
     end
   end
 end

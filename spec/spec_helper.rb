@@ -6,6 +6,7 @@ require "mini_tarball"
 require "super_diff/rspec"
 require_relative "support/super_diff/extension"
 require_relative "support/matchers/tar_header_matchers"
+require_relative "support/matchers/null_padding_matcher"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
