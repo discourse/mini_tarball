@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../integration_helper"
+require_relative "../../integration_helper"
 
 RSpec.describe "Directories" do
   it "extracts an empty directory" do

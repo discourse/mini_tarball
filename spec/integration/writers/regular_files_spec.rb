@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../integration_helper"
+require_relative "../../integration_helper"
 
 RSpec.describe "Regular files" do
   it "extracts a simple text file" do
