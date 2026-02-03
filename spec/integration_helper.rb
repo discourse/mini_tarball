@@ -9,6 +9,15 @@ require_relative "integration/support/hardlink_matcher"
 require_relative "integration/support/mode_matcher"
 require_relative "integration/support/archive_builder"
 
+def extract_with_all(archive_path)
+  Dir.mktmpdir do |tmpdir|
+    TarExtractor.each_extractor(tmpdir:) do |ctx|
+      raise "#{ctx.name} failed to extract #{archive_path}" unless ctx.extract(archive_path)
+      yield ctx.extract_dir
+    end
+  end
+end
+
 RSpec.configure do |config|
   config.include RSpec::PathMatchers
 

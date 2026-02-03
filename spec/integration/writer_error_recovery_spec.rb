@@ -14,28 +14,18 @@ RSpec.describe "Writer error recovery" do
     }
   end
 
-  def extract_with_all(archive_path)
-    Dir.mktmpdir do |tmpdir|
-      TarExtractor.each_extractor(tmpdir:) do |ctx|
-        raise "#{ctx.name} failed to extract #{archive_path}" unless ctx.extract(archive_path)
-        yield ctx.extract_dir
-      end
-    end
-  end
-
   it "keeps archive aligned when a sized streaming block raises" do
     Dir.mktmpdir do |tmpdir|
       archive_path = File.join(tmpdir, "test.tar")
 
       File.open(archive_path, "wb") do |file|
-        writer = MiniTarball::Writer.new(file)
+        MiniTarball::Writer.use(file) do |writer|
+          expect {
+            writer.file("bad.txt", size: 10, **default_options) { |_s| raise "boom" }
+          }.to raise_error(RuntimeError, "boom")
 
-        expect {
-          writer.file("bad.txt", size: 10, **default_options) { |_s| raise "boom" }
-        }.to raise_error(RuntimeError, "boom")
-
-        writer.file("good.txt", content: "ok", **default_options)
-        writer.close
+          writer.file("good.txt", content: "ok", **default_options)
+        end
       end
 
       extract_with_all(archive_path) do |dir|
@@ -50,17 +40,16 @@ RSpec.describe "Writer error recovery" do
       archive_path = File.join(tmpdir, "test.tar")
 
       File.open(archive_path, "wb") do |file|
-        writer = MiniTarball::Writer.new(file)
+        MiniTarball::Writer.use(file) do |writer|
+          expect {
+            writer.file("bad.txt", **default_options) do |stream|
+              stream.write("partial")
+              raise "boom"
+            end
+          }.to raise_error(RuntimeError, "boom")
 
-        expect {
-          writer.file("bad.txt", **default_options) do |stream|
-            stream.write("partial")
-            raise "boom"
-          end
-        }.to raise_error(RuntimeError, "boom")
-
-        writer.file("good.txt", content: "ok", **default_options)
-        writer.close
+          writer.file("good.txt", content: "ok", **default_options)
+        end
       end
 
       extract_with_all(archive_path) do |dir|
