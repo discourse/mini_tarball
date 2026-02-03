@@ -18,14 +18,12 @@ RSpec.describe "Writer error recovery" do
     Dir.mktmpdir do |tmpdir|
       archive_path = File.join(tmpdir, "test.tar")
 
-      File.open(archive_path, "wb") do |file|
-        MiniTarball::Writer.use(file) do |writer|
-          expect {
-            writer.file("bad.txt", size: 10, **default_options) { |_s| raise "boom" }
-          }.to raise_error(RuntimeError, "boom")
+      MiniTarball::Writer.create(archive_path) do |writer|
+        expect {
+          writer.file("bad.txt", size: 10, **default_options) { |_s| raise "boom" }
+        }.to raise_error(RuntimeError, "boom")
 
-          writer.file("good.txt", content: "ok", **default_options)
-        end
+        writer.file("good.txt", content: "ok", **default_options)
       end
 
       extract_with_all(archive_path) do |dir|
@@ -39,17 +37,15 @@ RSpec.describe "Writer error recovery" do
     Dir.mktmpdir do |tmpdir|
       archive_path = File.join(tmpdir, "test.tar")
 
-      File.open(archive_path, "wb") do |file|
-        MiniTarball::Writer.use(file) do |writer|
-          expect {
-            writer.file("bad.txt", **default_options) do |stream|
-              stream.write("partial")
-              raise "boom"
-            end
-          }.to raise_error(RuntimeError, "boom")
+      MiniTarball::Writer.create(archive_path) do |writer|
+        expect {
+          writer.file("bad.txt", **default_options) do |stream|
+            stream.write("partial")
+            raise "boom"
+          end
+        }.to raise_error(RuntimeError, "boom")
 
-          writer.file("good.txt", content: "ok", **default_options)
-        end
+        writer.file("good.txt", content: "ok", **default_options)
       end
 
       extract_with_all(archive_path) do |dir|

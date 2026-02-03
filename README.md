@@ -261,7 +261,7 @@ To install this gem onto your local machine, run `bundle exec rake install`.
 To release a new version, update the version number in `version.rb`, and then push it to GitHub.
 This will automatically create a tag and publish the gem on [rubygems.org](https://rubygems.org).
 
-On MacOS you need to run `brew install gnu-tar`, otherwise some specs will fail.
+On MacOS you need to run `brew install gnu-tar` to run integration specs; otherwise they are skipped locally (CI requires GNU tar).
 
 ### RubyCritic
 
