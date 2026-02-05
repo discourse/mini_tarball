@@ -8,6 +8,7 @@ require "mini_tarball/version"
 require "mini_tarball/writers/entry_attributes"
 
 # Headers
+require "mini_tarball/headers/layout"
 require "mini_tarball/headers/user_group_lookup"
 require "mini_tarball/headers/header"
 require "mini_tarball/headers/header_fields"
@@ -21,6 +22,7 @@ require "mini_tarball/streams/capped_write_stream"
 require "mini_tarball/streams/write_only_stream"
 
 # Validators
+require "mini_tarball/name_validation"
 require "mini_tarball/validators/path_validator"
 require "mini_tarball/validators/source_validator"
 require "mini_tarball/validators/extraction_validator"

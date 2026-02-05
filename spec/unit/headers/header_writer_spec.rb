@@ -116,7 +116,7 @@ RSpec.describe MiniTarball::HeaderWriter do
         MiniTarball::Header.new(
           name: "testdir/",
           size: 0,
-          typeflag: MiniTarball::Header::TYPE_DIRECTORY,
+          typeflag: MiniTarball::Header::TYPE[:directory],
           attrs: dir_attrs,
         )
       header_writer.write(header)
@@ -128,7 +128,7 @@ RSpec.describe MiniTarball::HeaderWriter do
         MiniTarball::Header.new(
           name: "link.txt",
           size: 0,
-          typeflag: MiniTarball::Header::TYPE_SYMLINK,
+          typeflag: MiniTarball::Header::TYPE[:symlink],
           linkname: "target.txt",
           attrs: default_attrs,
         )
@@ -144,7 +144,7 @@ RSpec.describe MiniTarball::HeaderWriter do
         MiniTarball::Header.new(
           name: "link.txt",
           size: 0,
-          typeflag: MiniTarball::Header::TYPE_SYMLINK,
+          typeflag: MiniTarball::Header::TYPE[:symlink],
           linkname: long_target,
           attrs: default_attrs,
         )
@@ -157,7 +157,7 @@ RSpec.describe MiniTarball::HeaderWriter do
         MiniTarball::Header.new(
           name: "hardlink.txt",
           size: 0,
-          typeflag: MiniTarball::Header::TYPE_HARDLINK,
+          typeflag: MiniTarball::Header::TYPE[:hardlink],
           linkname: "original.txt",
           attrs: default_attrs,
         )
@@ -173,7 +173,7 @@ RSpec.describe MiniTarball::HeaderWriter do
         MiniTarball::Header.new(
           name: "hardlink.txt",
           size: 0,
-          typeflag: MiniTarball::Header::TYPE_HARDLINK,
+          typeflag: MiniTarball::Header::TYPE[:hardlink],
           linkname: long_name,
           attrs: default_attrs,
         )

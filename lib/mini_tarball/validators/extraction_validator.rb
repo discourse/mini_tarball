@@ -41,7 +41,7 @@ module MiniTarball
       dest_real = File.realpath(destination)
 
       # Resolve where the symlink would point to
-      if target.start_with?("/")
+      if NameValidation.absolute_path?(target)
         # Absolute symlink targets are always rejected
         raise PathTraversalError, "Absolute symlink target not allowed: #{target}"
       end
@@ -64,25 +64,7 @@ module MiniTarball
     # @param name [String] the entry name
     # @raise [PathTraversalError] if the name contains dangerous components
     def self.validate_name_components!(name)
-      # Reject absolute paths
-      if name.start_with?("/") || name.match?(/\A[A-Za-z]:/)
-        raise PathTraversalError, "Absolute path not allowed: #{name}"
-      end
-
-      # Reject paths with null bytes
-      if name.include?("\0")
-        raise PathTraversalError, "Null bytes not allowed in path: #{name.inspect}"
-      end
-
-      # Reject Windows-style paths on Unix
-      if name.include?("\\")
-        # Convert to forward slashes for checking
-        normalized = name.tr("\\", "/")
-        if normalized.start_with?("/") || normalized.include?("/../") ||
-             normalized.start_with?("../")
-          raise PathTraversalError, "Path traversal detected: #{name}"
-        end
-      end
+      NameValidation.validate!(name, label: "name", error_class: PathTraversalError)
     end
 
     def self.ensure_no_symlink_components!(dest_real, target_path, allow_final_symlink:)

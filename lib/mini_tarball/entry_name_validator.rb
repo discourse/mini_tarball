@@ -7,16 +7,6 @@ module MiniTarball
   # @return [void]
   # @raise [PathTraversalError] if the name contains dangerous components
   def self.validate_name!(name)
-    if name.nil? || name.empty?
-      raise PathTraversalError, "Empty name not allowed"
-    end
-
-    ExtractionValidator.validate_name_components!(name)
-
-    normalized = name.tr("\\", "/")
-    if normalized == ".." || normalized.start_with?("../") || normalized.end_with?("/..") ||
-         normalized.include?("/../")
-      raise PathTraversalError, "Path traversal detected: #{name}"
-    end
+    NameValidation.validate!(name, label: "name", error_class: PathTraversalError)
   end
 end

@@ -124,7 +124,7 @@ RSpec.describe MiniTarball::HeaderParser do
 
     it "uses the first byte payload bits for base-256 values" do
       data = fixture("headers/small_file_header").dup
-      field = described_class::FIELD_OFFSETS[:size]
+      field = MiniTarball::Headers::Layout::FIELD_MAP[:size]
       size_length = field[:length]
       size_offset = field[:offset]
       encoded = ([0x81] + [0x00] * (size_length - 1)).pack("C*")

@@ -42,7 +42,7 @@ module MiniTarball
 
     # Writes NUL padding to align to the next block boundary.
     def write_padding
-      padding_length = (Header::BLOCK_SIZE - @io.pos) % Header::BLOCK_SIZE
+      padding_length = Header.padding_for(@io.pos)
       NullWriter.write(@io, padding_length)
     end
   end

@@ -109,6 +109,16 @@ RSpec.describe MiniTarball::ExtractionValidator do
       }.to raise_error(MiniTarball::PathTraversalError, /Absolute symlink/)
     end
 
+    it "rejects Windows absolute symlink targets" do
+      expect {
+        described_class.validate_symlink_target!(
+          link_path: link_path,
+          target: "C:\\Windows\\System32",
+          destination: tmpdir,
+        )
+      }.to raise_error(MiniTarball::PathTraversalError, /Absolute symlink/)
+    end
+
     it "rejects symlinks that escape destination" do
       expect {
         described_class.validate_symlink_target!(
@@ -146,7 +156,7 @@ RSpec.describe MiniTarball::ExtractionValidator do
     it "rejects paths with null bytes" do
       expect { described_class.validate_name_components!("file\0.txt") }.to raise_error(
         MiniTarball::PathTraversalError,
-        /Null bytes/,
+        /NUL bytes/,
       )
     end
 

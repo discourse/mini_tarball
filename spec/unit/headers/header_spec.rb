@@ -72,7 +72,7 @@ RSpec.describe MiniTarball::Header do
     end
 
     it "encodes typeflag for directories" do
-      header = described_class.new(name: "mydir/", typeflag: MiniTarball::Header::TYPE_DIRECTORY)
+      header = described_class.new(name: "mydir/", typeflag: MiniTarball::Header::TYPE[:directory])
       expect(header.to_binary).to have_tar_header_field(:typeflag, "5")
     end
 
@@ -81,7 +81,7 @@ RSpec.describe MiniTarball::Header do
         described_class.new(
           name: "link.txt",
           linkname: "target.txt",
-          typeflag: MiniTarball::Header::TYPE_SYMLINK,
+          typeflag: MiniTarball::Header::TYPE[:symlink],
         )
       binary = header.to_binary
       expect(binary).to have_tar_header_field(:typeflag, "2")
@@ -178,7 +178,7 @@ RSpec.describe MiniTarball::Header do
       header = described_class.long_link_header("a" * 200)
 
       expect(header.value_of(:name)).to eq("././@LongLink")
-      expect(header.value_of(:typeflag)).to eq("L")
+      expect(header.value_of(:typeflag)).to eq(MiniTarball::Header::TYPE[:gnu_long_name])
       expect(header.value_of(:size)).to eq(201) # name length + 1 for null terminator
     end
   end
@@ -188,22 +188,22 @@ RSpec.describe MiniTarball::Header do
       header = described_class.long_linkname_header("a" * 200)
 
       expect(header.value_of(:name)).to eq("././@LongLink")
-      expect(header.value_of(:typeflag)).to eq("K")
+      expect(header.value_of(:typeflag)).to eq(MiniTarball::Header::TYPE[:gnu_long_linkname])
       expect(header.value_of(:size)).to eq(201) # target length + 1 for null terminator
     end
   end
 
-  describe "FIELDS" do
+  describe "Layout" do
     it "is frozen" do
-      expect(MiniTarball::Header::FIELDS).to be_frozen
+      expect(MiniTarball::Headers::Layout::FIELDS).to be_frozen
     end
 
     it "has frozen nested hashes" do
-      MiniTarball::Header::FIELDS.each_value { |field| expect(field).to be_frozen }
+      MiniTarball::Headers::Layout::FIELD_MAP.each_value { |field| expect(field).to be_frozen }
     end
 
     it "defines correct total header size" do
-      total = MiniTarball::Header::FIELDS.values.sum { |f| f[:length] }
+      total = MiniTarball::Headers::Layout::TOTAL_SIZE
       expect(total).to eq(500) # 512 - 12 bytes padding
     end
   end

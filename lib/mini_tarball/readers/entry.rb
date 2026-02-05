@@ -54,25 +54,25 @@ module MiniTarball
       # Returns whether this entry is a regular file.
       # @return [Boolean]
       def file?
-        typeflag == Header::TYPE_REGULAR || typeflag == "\0"
+        typeflag == Header::TYPE[:regular] || typeflag == "\0"
       end
 
       # Returns whether this entry is a directory.
       # @return [Boolean]
       def directory?
-        typeflag == Header::TYPE_DIRECTORY
+        typeflag == Header::TYPE[:directory]
       end
 
       # Returns whether this entry is a symbolic link.
       # @return [Boolean]
       def symlink?
-        typeflag == Header::TYPE_SYMLINK
+        typeflag == Header::TYPE[:symlink]
       end
 
       # Returns whether this entry is a hard link.
       # @return [Boolean]
       def hardlink?
-        typeflag == Header::TYPE_HARDLINK
+        typeflag == Header::TYPE[:hardlink]
       end
 
       # Returns whether this entry is a link (symlink or hardlink).
@@ -84,25 +84,25 @@ module MiniTarball
       # Returns whether this is a pax extended header entry.
       # @return [Boolean]
       def pax_extended?
-        typeflag == Header::TYPE_PAX_EXTENDED
+        typeflag == Header::TYPE[:pax_extended]
       end
 
       # Returns whether this is a pax global header entry.
       # @return [Boolean]
       def pax_global?
-        typeflag == Header::TYPE_PAX_GLOBAL
+        typeflag == Header::TYPE[:pax_global]
       end
 
       # Returns whether this is a GNU long link header.
       # @return [Boolean]
       def gnu_long_link?
-        typeflag == "L"
+        typeflag == Header::TYPE[:gnu_long_name]
       end
 
       # Returns whether this is a GNU long linkname header.
       # @return [Boolean]
       def gnu_long_linkname?
-        typeflag == "K"
+        typeflag == Header::TYPE[:gnu_long_linkname]
       end
 
       # Returns whether this is a metadata entry (not a real file/dir/link).
@@ -114,7 +114,9 @@ module MiniTarball
       # Returns a symbolic type for this entry.
       #
       # @return [Symbol] one of :file, :directory, :symlink, :hardlink,
-      #   :pax_extended, :pax_global, :gnu_long_link, :gnu_long_linkname, or :unknown
+      #   :pax_extended, :pax_global, :gnu_long_link, :gnu_long_linkname, or :unknown.
+      #   Standard tar types that aren't handled (char/block devices, FIFOs, contiguous files)
+      #   are reported as :unknown.
       def type
         return :file if file?
         return :directory if directory?

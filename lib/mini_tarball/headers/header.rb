@@ -7,19 +7,21 @@ module MiniTarball
   class Header
     # Size of each block in the tar file in bytes.
     BLOCK_SIZE = 512
+    END_OF_ARCHIVE_BLOCKS = 2
+    END_OF_ARCHIVE_SIZE = BLOCK_SIZE * END_OF_ARCHIVE_BLOCKS
 
-    # @!group Entry Type Constants
-    TYPE_REGULAR = "0"
-    TYPE_HARDLINK = "1"
-    TYPE_SYMLINK = "2"
-    TYPE_DIRECTORY = "5"
-    TYPE_PAX_EXTENDED = "x"
-    TYPE_PAX_GLOBAL = "g"
-    # @!endgroup
-
-    TYPE_LONG_LINK = "L"
-    TYPE_LONG_LINKNAME = "K"
-    private_constant :TYPE_LONG_LINK, :TYPE_LONG_LINKNAME
+    # Entry type flags.
+    TYPE =
+      {
+        regular: "0",
+        hardlink: "1",
+        symlink: "2",
+        directory: "5",
+        pax_extended: "x",
+        pax_global: "g",
+        gnu_long_name: "L",
+        gnu_long_linkname: "K",
+      }.freeze
 
     # Attributes used for GNU extension headers (long filenames/linknames)
     GNU_EXTENSION_ATTRS =
@@ -33,34 +35,12 @@ module MiniTarball
       ).freeze
     private_constant :GNU_EXTENSION_ATTRS
 
-    # Field definitions for the tar header format.
-
-    # stree-ignore
-    FIELDS = {
-      name:     { length: 100, type: :chars }.freeze,
-      mode:     { length:   8, type: :mode }.freeze,
-      uid:      { length:   8, type: :number }.freeze,
-      gid:      { length:   8, type: :number }.freeze,
-      size:     { length:  12, type: :number }.freeze,
-      mtime:    { length:  12, type: :number }.freeze,
-      checksum: { length:   8, type: :checksum }.freeze,
-      typeflag: { length:   1, type: :chars }.freeze,
-      linkname: { length: 100, type: :chars }.freeze,
-      magic:    { length:   6, type: :chars }.freeze,
-      version:  { length:   2, type: :chars }.freeze,
-      uname:    { length:  32, type: :chars }.freeze,
-      gname:    { length:  32, type: :chars }.freeze,
-      devmajor: { length:   8, type: :number }.freeze,
-      devminor: { length:   8, type: :number }.freeze,
-      prefix:   { length: 155, type: :chars }.freeze,
-    }.freeze
-
     # Creates a GNU extension header for long filenames.
     #
     # @param name [String] the filename exceeding 100 bytes
     # @return [Header] a header with typeflag 'L'
     def self.long_link_header(name)
-      gnu_extension_header(name, TYPE_LONG_LINK)
+      gnu_extension_header(name, TYPE[:gnu_long_name])
     end
 
     # Creates a GNU extension header for long link targets.
@@ -68,7 +48,7 @@ module MiniTarball
     # @param target [String] the link target exceeding 100 bytes
     # @return [Header] a header with typeflag 'K'
     def self.long_linkname_header(target)
-      gnu_extension_header(target, TYPE_LONG_LINKNAME)
+      gnu_extension_header(target, TYPE[:gnu_long_linkname])
     end
 
     private_class_method def self.gnu_extension_header(content, typeflag)
@@ -84,10 +64,10 @@ module MiniTarball
     #
     # @param name [String] entry name
     # @param size [Integer] file size in bytes
-    # @param typeflag [String] entry type (see TYPE_* constants)
+    # @param typeflag [String] entry type (see TYPE map)
     # @param linkname [String] link target for symlinks/hardlinks
     # @param attrs [EntryAttributes, nil] entry attributes (mode, uid, gid, uname, gname, mtime)
-    def initialize(name:, size: 0, typeflag: TYPE_REGULAR, linkname: "", attrs: nil)
+    def initialize(name:, size: 0, typeflag: TYPE[:regular], linkname: "", attrs: nil)
       @values = {
         name:,
         mode: attrs&.mode || 0,
@@ -130,14 +110,22 @@ module MiniTarball
     #
     # @return [Boolean]
     def has_long_name?
-      value_of(:name).bytesize > FIELDS[:name][:length]
+      value_of(:name).bytesize > Headers::Layout::FIELD_MAP[:name][:length]
     end
 
     # Returns whether the link target exceeds 100 bytes.
     #
     # @return [Boolean]
     def has_long_linkname?
-      value_of(:linkname).bytesize > FIELDS[:linkname][:length]
+      value_of(:linkname).bytesize > Headers::Layout::FIELD_MAP[:linkname][:length]
+    end
+
+    # Returns the padding needed to align to the next block boundary.
+    #
+    # @param size [Integer] the size to align
+    # @return [Integer] padding length
+    def self.padding_for(size)
+      (BLOCK_SIZE - (size % BLOCK_SIZE)) % BLOCK_SIZE
     end
   end
 end

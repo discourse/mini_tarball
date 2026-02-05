@@ -17,7 +17,8 @@ module MiniTarball
   # - Pax extended ("x"), pax global ("g")
   #
   # Metadata entries (GNU/pax) are consumed internally and are not yielded.
-  # Unknown types are treated as regular file payloads during extraction.
+  # When both GNU long names and pax path/linkpath are present, pax attributes
+  # take precedence. Unknown types are treated as regular file payloads during extraction.
   #
   # @example Block-based reading (recommended)
   #   Reader.open("archive.tar") do |reader|
@@ -38,8 +39,6 @@ module MiniTarball
     DEFAULT_MAX_FILE_SIZE = 8_589_934_592 # 8GB per file
     DEFAULT_MAX_TOTAL_SIZE = 53_687_091_200 # 50GB total
     DEFAULT_MAX_ENTRY_COUNT = 100_000 # 100K entries
-
-    BLOCK_SIZE = Header::BLOCK_SIZE
 
     # Opens a tar file and yields a reader.
     # The file is automatically closed when the block returns.
@@ -107,44 +106,54 @@ module MiniTarball
       pending_pax_attributes = nil
 
       while (header = read_header)
-        entry =
-          Entry.from_header(header, pax_attributes: merged_pax_attributes(pending_pax_attributes))
-        content_size = header.size
-        stream = create_content_stream(content_size)
-
-        case entry.typeflag
-        when "L" # GNU long link (filename)
+        case header.typeflag
+        when Header::TYPE[:gnu_long_name] # GNU long link (filename)
+          entry = Entry.from_header(header)
+          stream = create_content_stream(header.size)
           check_limits!(entry)
           pending_long_name = read_gnu_long_name(stream)
-          finalize_entry(stream, content_size)
+          finalize_entry(stream, header.size)
           next
-        when "K" # GNU long linkname
+        when Header::TYPE[:gnu_long_linkname] # GNU long linkname
+          entry = Entry.from_header(header)
+          stream = create_content_stream(header.size)
           check_limits!(entry)
           pending_long_linkname = read_gnu_long_name(stream)
-          finalize_entry(stream, content_size)
+          finalize_entry(stream, header.size)
           next
-        when Header::TYPE_PAX_GLOBAL
+        when Header::TYPE[:pax_global]
+          entry = Entry.from_header(header)
+          stream = create_content_stream(header.size)
           check_limits!(entry)
           @pax_global_attributes = parse_pax_data(stream)
-          finalize_entry(stream, content_size)
+          finalize_entry(stream, header.size)
           next
-        when Header::TYPE_PAX_EXTENDED
+        when Header::TYPE[:pax_extended]
+          entry = Entry.from_header(header)
+          stream = create_content_stream(header.size)
           check_limits!(entry)
           pending_pax_attributes = parse_pax_data(stream)
-          finalize_entry(stream, content_size)
+          finalize_entry(stream, header.size)
           next
         end
 
-        # Apply pending GNU long names if present
+        pax_attributes = merged_pax_attributes(pending_pax_attributes)
+        entry = Entry.from_header(header, pax_attributes: pax_attributes)
+
+        # Apply pending GNU long names if present (pax overrides take precedence).
         entry =
           apply_gnu_long_names(
             entry,
             long_name: pending_long_name,
             long_linkname: pending_long_linkname,
+            pax_attributes: pax_attributes,
           )
         pending_long_name = nil
         pending_long_linkname = nil
         pending_pax_attributes = nil
+
+        content_size = entry.size
+        stream = create_content_stream(content_size)
 
         check_limits!(entry)
         block.call(entry, stream)
@@ -185,8 +194,6 @@ module MiniTarball
       extracted = []
 
       each_entry do |entry, stream|
-        next if entry.metadata?
-
         ExtractionValidator.validate_name_components!(entry.name)
         path =
           ExtractionValidator.validate_extraction_path!(
@@ -234,11 +241,11 @@ module MiniTarball
     def read_header
       return nil if @finished
 
-      data = read_exact!(BLOCK_SIZE, "header")
+      data = read_exact!(Header::BLOCK_SIZE, "header")
 
       # Check for end-of-archive (two consecutive null blocks)
       if HeaderParser.null_block?(data)
-        second = read_exact!(BLOCK_SIZE, "end-of-archive marker")
+        second = read_exact!(Header::BLOCK_SIZE, "end-of-archive marker")
         unless HeaderParser.null_block?(second)
           raise InvalidHeaderError, "Invalid end-of-archive marker"
         end
@@ -275,7 +282,14 @@ module MiniTarball
       @pax_global_attributes.merge(entry_attributes || {})
     end
 
-    def apply_gnu_long_names(entry, long_name:, long_linkname:)
+    def apply_gnu_long_names(entry, long_name:, long_linkname:, pax_attributes:)
+      return entry unless long_name || long_linkname
+
+      if pax_attributes
+        long_name = nil if pax_attributes.key?("path")
+        long_linkname = nil if pax_attributes.key?("linkpath")
+      end
+
       return entry unless long_name || long_linkname
 
       Entry.new(
@@ -296,7 +310,7 @@ module MiniTarball
 
     def skip_to_next_block(content_size)
       # Skip any remaining padding to reach the next block boundary
-      padding = (BLOCK_SIZE - (content_size % BLOCK_SIZE)) % BLOCK_SIZE
+      padding = Header.padding_for(content_size)
       skip_bytes!(padding, "padding") if padding > 0
     end
 

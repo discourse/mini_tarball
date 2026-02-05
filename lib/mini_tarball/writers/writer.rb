@@ -34,9 +34,6 @@ module MiniTarball
   #     manifest.fill content: JSON.generate(files: ["data.bin"])
   #   end
   class Writer
-    END_OF_TAR_BLOCK_SIZE = 1024
-    private_constant :END_OF_TAR_BLOCK_SIZE
-
     # Creates a new tar file and yields a writer for adding entries.
     # The file is automatically closed when the block returns.
     #
@@ -192,7 +189,7 @@ module MiniTarball
       name = "#{name}/" unless name.end_with?("/")
 
       attrs = EntryAttributes.new(mode:, uid:, gid:, uname:, gname:, mtime:)
-      @header_writer.write(Header.new(name:, size: 0, typeflag: Header::TYPE_DIRECTORY, attrs:))
+      @header_writer.write(Header.new(name:, size: 0, typeflag: Header::TYPE[:directory], attrs:))
       self
     end
 
@@ -222,7 +219,7 @@ module MiniTarball
       allow_parent_references: false
     )
       attrs = EntryAttributes.new(mode:, uid:, gid:, uname:, gname:, mtime:)
-      write_link(name:, target:, typeflag: Header::TYPE_SYMLINK, attrs:, allow_parent_references:)
+      write_link(name:, target:, typeflag: Header::TYPE[:symlink], attrs:, allow_parent_references:)
     end
 
     # Adds a hard link entry to the archive.
@@ -251,7 +248,7 @@ module MiniTarball
       allow_parent_references: false
     )
       attrs = EntryAttributes.new(mode:, uid:, gid:, uname:, gname:, mtime:)
-      write_link(name:, target:, typeflag: Header::TYPE_HARDLINK, attrs:, allow_parent_references:)
+      write_link(name:, target:, typeflag: Header::TYPE[:hardlink], attrs:, allow_parent_references:)
     end
 
     # Reserves space for a file to be filled later.
@@ -296,7 +293,7 @@ module MiniTarball
       return if closed?
       ensure_all_placeholders_filled!
 
-      NullWriter.write(@io, END_OF_TAR_BLOCK_SIZE)
+      NullWriter.write(@io, Header::END_OF_ARCHIVE_SIZE)
       nil
     ensure
       @io.close unless @closed

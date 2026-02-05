@@ -5,7 +5,7 @@ require "tmpdir"
 
 def build_custom_archive(
   name: "file.txt",
-  typeflag: MiniTarball::Header::TYPE_REGULAR,
+  typeflag: MiniTarball::Header::TYPE[:regular],
   content: "content",
   pad: true,
   end_blocks: true
@@ -25,6 +25,82 @@ def build_custom_archive(
   end
 
   io.write("\0" * (MiniTarball::Header::BLOCK_SIZE * 2)) if end_blocks
+  io.rewind
+  io
+end
+
+def build_pax_record(key, value)
+  data = "#{key}=#{value}\n"
+  length = data.bytesize + 2
+
+  loop do
+    record = "#{length} #{data}"
+    return record if record.bytesize == length
+    length = record.bytesize
+  end
+end
+
+def write_entry(io, header, content)
+  MiniTarball::HeaderWriter.new(io).write(header)
+  io.write(content)
+  io.write("\0" * MiniTarball::Header.padding_for(content.bytesize))
+end
+
+def build_pax_size_override_archive
+  io = StringIO.new(String.new, "w+b")
+  attrs = MiniTarball::EntryAttributes.with_file_defaults
+
+  pax_record = build_pax_record("size", "4")
+  pax_header =
+    MiniTarball::Header.new(
+      name: "pax",
+      size: pax_record.bytesize,
+      typeflag: MiniTarball::Header::TYPE[:pax_extended],
+      attrs: attrs,
+    )
+  write_entry(io, pax_header, pax_record)
+
+  file_header =
+    MiniTarball::Header.new(
+      name: "file.txt",
+      size: 1,
+      typeflag: MiniTarball::Header::TYPE[:regular],
+      attrs: attrs,
+    )
+  write_entry(io, file_header, "DATA")
+
+  io.write("\0" * MiniTarball::Header::END_OF_ARCHIVE_SIZE)
+  io.rewind
+  io
+end
+
+def build_gnu_and_pax_archive
+  io = StringIO.new(String.new, "w+b")
+  attrs = MiniTarball::EntryAttributes.with_file_defaults
+
+  long_name = ("a" * 120) + ".txt"
+  write_entry(io, MiniTarball::Header.long_link_header(long_name), "#{long_name}\0")
+
+  pax_record = build_pax_record("path", "pax_name.txt")
+  pax_header =
+    MiniTarball::Header.new(
+      name: "pax",
+      size: pax_record.bytesize,
+      typeflag: MiniTarball::Header::TYPE[:pax_extended],
+      attrs: attrs,
+    )
+  write_entry(io, pax_header, pax_record)
+
+  file_header =
+    MiniTarball::Header.new(
+      name: "short.txt",
+      size: 3,
+      typeflag: MiniTarball::Header::TYPE[:regular],
+      attrs: attrs,
+    )
+  write_entry(io, file_header, "abc")
+
+  io.write("\0" * MiniTarball::Header::END_OF_ARCHIVE_SIZE)
   io.rewind
   io
 end
@@ -148,6 +224,28 @@ RSpec.describe MiniTarball::Reader do
     end
   end
 
+  describe "pax headers" do
+    it "uses pax size overrides for content length" do
+      io = build_pax_size_override_archive
+      data = nil
+
+      described_class.use(io) do |reader|
+        reader.each_entry { |_, stream| data = stream.read }
+      end
+
+      expect(data).to eq("DATA")
+    end
+
+    it "prefers pax path over GNU long name when both are present" do
+      io = build_gnu_and_pax_archive
+      entry_name = nil
+
+      described_class.use(io) { |reader| reader.each_entry { |entry, _| entry_name = entry.name } }
+
+      expect(entry_name).to eq("pax_name.txt")
+    end
+  end
+
   describe "limits" do
     it "raises ArchiveLimitError when entry count exceeds limit" do
       expect {
@@ -231,16 +329,19 @@ RSpec.describe MiniTarball::Reader do
 
   describe "directory entries" do
     it "identifies directory entries" do
-      mixed_archive = fixture("archives/mixed_entries.tar")
-      io = StringIO.new(mixed_archive)
+      io =
+        build_custom_archive(
+          name: "dir/",
+          typeflag: MiniTarball::Header::TYPE[:directory],
+          content: "",
+        )
 
       has_directory = false
       described_class.use(io) do |reader|
         reader.each_entry { |entry, _| has_directory = true if entry.directory? }
       end
 
-      # mixed_entries.tar has file, symlink, hardlink but no directory
-      expect(has_directory).to be false
+      expect(has_directory).to be true
     end
   end
 

@@ -8,76 +8,7 @@ module MiniTarball
   #
   # @api private
   module HeaderParser
-    BLOCK_SIZE = Header::BLOCK_SIZE
-    NULL_BLOCK = ("\0" * BLOCK_SIZE).b.freeze
-
-    # Field offsets and lengths in the tar header
-    FIELD_OFFSETS = {
-      name: {
-        offset: 0,
-        length: 100,
-      }.freeze,
-      mode: {
-        offset: 100,
-        length: 8,
-      }.freeze,
-      uid: {
-        offset: 108,
-        length: 8,
-      }.freeze,
-      gid: {
-        offset: 116,
-        length: 8,
-      }.freeze,
-      size: {
-        offset: 124,
-        length: 12,
-      }.freeze,
-      mtime: {
-        offset: 136,
-        length: 12,
-      }.freeze,
-      checksum: {
-        offset: 148,
-        length: 8,
-      }.freeze,
-      typeflag: {
-        offset: 156,
-        length: 1,
-      }.freeze,
-      linkname: {
-        offset: 157,
-        length: 100,
-      }.freeze,
-      magic: {
-        offset: 257,
-        length: 6,
-      }.freeze,
-      version: {
-        offset: 263,
-        length: 2,
-      }.freeze,
-      uname: {
-        offset: 265,
-        length: 32,
-      }.freeze,
-      gname: {
-        offset: 297,
-        length: 32,
-      }.freeze,
-      devmajor: {
-        offset: 329,
-        length: 8,
-      }.freeze,
-      devminor: {
-        offset: 337,
-        length: 8,
-      }.freeze,
-      prefix: {
-        offset: 345,
-        length: 155,
-      }.freeze,
-    }.freeze
+    NULL_BLOCK = ("\0" * Header::BLOCK_SIZE).b.freeze
 
     # Parsed header data
     ParsedHeader =
@@ -127,8 +58,8 @@ module MiniTarball
       # @raise [InvalidHeaderError] if header is malformed
       # @raise [ChecksumMismatchError] if checksum verification fails
       def parse(data, verify_checksum: true)
-        if data.bytesize != BLOCK_SIZE
-          raise InvalidHeaderError, "Header must be #{BLOCK_SIZE} bytes"
+        if data.bytesize != Header::BLOCK_SIZE
+          raise InvalidHeaderError, "Header must be #{Header::BLOCK_SIZE} bytes"
         end
 
         return nil if null_block?(data)
@@ -169,8 +100,8 @@ module MiniTarball
       # @param data [String] the 512-byte header block
       # @return [Integer] the computed checksum
       def compute_checksum(data)
-        checksum_offset = FIELD_OFFSETS[:checksum][:offset]
-        checksum_length = FIELD_OFFSETS[:checksum][:length]
+        checksum_offset = Headers::Layout::FIELD_MAP[:checksum][:offset]
+        checksum_length = Headers::Layout::FIELD_MAP[:checksum][:length]
 
         sum = 0
         data.each_byte.with_index do |byte, index|
@@ -200,8 +131,8 @@ module MiniTarball
       end
 
       def compute_signed_checksum(data)
-        checksum_offset = FIELD_OFFSETS[:checksum][:offset]
-        checksum_length = FIELD_OFFSETS[:checksum][:length]
+        checksum_offset = Headers::Layout::FIELD_MAP[:checksum][:offset]
+        checksum_length = Headers::Layout::FIELD_MAP[:checksum][:length]
 
         sum = 0
         data.each_byte.with_index do |byte, index|
@@ -226,7 +157,7 @@ module MiniTarball
       end
 
       def extract_raw(field, data)
-        info = FIELD_OFFSETS[field]
+        info = Headers::Layout::FIELD_MAP[field]
         data.byteslice(info[:offset], info[:length])
       end
 

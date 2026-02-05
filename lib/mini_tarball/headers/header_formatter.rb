@@ -46,7 +46,7 @@ module MiniTarball
     # @param checksum [Integer, nil] the checksum value
     # @return [String] formatted checksum with trailing null and space
     def self.format_checksum(checksum)
-      length = Header::FIELDS[:checksum][:length]
+      length = Headers::Layout::FIELD_MAP[:checksum][:length]
 
       checksum ? format_number(checksum, length - 1) << "\0 " : " " * length
     end
@@ -56,7 +56,7 @@ module MiniTarball
     # @param binary [String] the data to pad
     # @return [String] padded data
     def self.zero_pad(binary)
-      padding_length = (Header::BLOCK_SIZE - binary.length) % Header::BLOCK_SIZE
+      padding_length = Header.padding_for(binary.length)
       padding_length > 0 ? binary + ("\0" * padding_length) : binary
     end
 

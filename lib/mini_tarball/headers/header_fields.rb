@@ -5,7 +5,7 @@ module MiniTarball
   #
   # @api private
   class HeaderFields
-    PACK_FORMAT = Header::FIELDS.values.map { |field| "a#{field[:length]}" }.join("").freeze
+    PACK_FORMAT = Headers::Layout::PACK_FORMAT
     private_constant :PACK_FORMAT
 
     # @param header [Header] the header to encode
@@ -18,9 +18,8 @@ module MiniTarball
     #
     # @return [String] 512-byte binary header
     def to_binary
-      Header::FIELDS.each_key do |name|
-        value = @header.value_of(name)
-        set_value(name, value)
+      Headers::Layout::FIELDS.each do |name, _length, _type|
+        set_value(name, @header.value_of(name))
       end
 
       update_checksum
@@ -28,7 +27,7 @@ module MiniTarball
     end
 
     private def set_value(name, value)
-      field = Header::FIELDS[name]
+      field = Headers::Layout::FIELD_MAP[name]
 
       @values_by_field[name] = case field[:type]
       in :number
@@ -48,7 +47,7 @@ module MiniTarball
     end
 
     private def encode_fields
-      values = @values_by_field.values
+      values = Headers::Layout::FIELDS.map { |name, _length, _type| @values_by_field[name] }
       values.pack(PACK_FORMAT)
     end
   end

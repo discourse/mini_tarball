@@ -212,7 +212,8 @@ end
 
 Reader knows about regular files, directories, symlinks, and hardlinks. It also understands GNU
 long name/link headers and pax extended/global headers (these metadata entries are not yielded).
-Unknown types are treated as regular file payloads during extraction.
+Other tar types (character/block devices, FIFOs, contiguous files, etc.) are treated as `:unknown`
+and extracted as regular file payloads during extraction.
 
 `Entry` supports simple predicates and a `type` symbol, so you can branch without pattern
 matching. `each_entry` skips metadata entries (GNU/pax headers) automatically.
