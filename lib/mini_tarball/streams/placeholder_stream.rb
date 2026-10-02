@@ -7,11 +7,13 @@ module MiniTarball
     end
 
     def write(data)
-      super(data)
+      written = super(data)
 
       if (current_position = io.pos) <= end_position
         io.write("\0" * (end_position - current_position))
       end
+
+      written
     end
   end
 end
