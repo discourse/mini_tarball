@@ -19,8 +19,8 @@ def build_custom_archive(
 
   if pad
     padding =
-      (MiniTarball::Header::BLOCK_SIZE -
-        (content.bytesize % MiniTarball::Header::BLOCK_SIZE)) % MiniTarball::Header::BLOCK_SIZE
+      (MiniTarball::Header::BLOCK_SIZE - (content.bytesize % MiniTarball::Header::BLOCK_SIZE)) %
+        MiniTarball::Header::BLOCK_SIZE
     io.write("\0" * padding)
   end
 
@@ -56,7 +56,7 @@ def build_pax_size_override_archive
       name: "pax",
       size: pax_record.bytesize,
       typeflag: MiniTarball::Header::TYPE[:pax_extended],
-      attrs: attrs,
+      attrs:,
     )
   write_entry(io, pax_header, pax_record)
 
@@ -65,7 +65,7 @@ def build_pax_size_override_archive
       name: "file.txt",
       size: 1,
       typeflag: MiniTarball::Header::TYPE[:regular],
-      attrs: attrs,
+      attrs:,
     )
   write_entry(io, file_header, "DATA")
 
@@ -87,7 +87,7 @@ def build_gnu_and_pax_archive
       name: "pax",
       size: pax_record.bytesize,
       typeflag: MiniTarball::Header::TYPE[:pax_extended],
-      attrs: attrs,
+      attrs:,
     )
   write_entry(io, pax_header, pax_record)
 
@@ -96,7 +96,7 @@ def build_gnu_and_pax_archive
       name: "short.txt",
       size: 3,
       typeflag: MiniTarball::Header::TYPE[:regular],
-      attrs: attrs,
+      attrs:,
     )
   write_entry(io, file_header, "abc")
 
@@ -229,9 +229,7 @@ RSpec.describe MiniTarball::Reader do
       io = build_pax_size_override_archive
       data = nil
 
-      described_class.use(io) do |reader|
-        reader.each_entry { |_, stream| data = stream.read }
-      end
+      described_class.use(io) { |reader| reader.each_entry { |_, stream| data = stream.read } }
 
       expect(data).to eq("DATA")
     end
@@ -294,6 +292,23 @@ RSpec.describe MiniTarball::Reader do
           reader.each_entry { |_, stream| stream.skip }
         end
       }.to raise_error(MiniTarball::ArchiveLimitError, /Entry size limit exceeded/)
+    end
+
+    it "rejects metadata entries larger than MAX_METADATA_SIZE" do
+      io = StringIO.new(String.new, "w+b")
+      header =
+        MiniTarball::Header.new(
+          name: "././@LongLink",
+          size: MiniTarball::Reader::MAX_METADATA_SIZE + 1,
+          typeflag: MiniTarball::Header::TYPE[:gnu_long_name],
+          attrs: MiniTarball::EntryAttributes.with_file_defaults,
+        )
+      MiniTarball::HeaderWriter.new(io).write(header)
+      io.rewind
+
+      expect {
+        described_class.use(io) { |reader| reader.each_entry { |_, stream| stream.skip } }
+      }.to raise_error(MiniTarball::ArchiveLimitError, /Metadata entry too large/)
     end
   end
 
@@ -473,10 +488,11 @@ RSpec.describe MiniTarball::Reader do
         extracted =
           reader.extract_all(
             tmpdir,
-            before: lambda { |entry, _path|
-              before_seen << entry.name
-              entry.name != "file2.txt"
-            },
+            before:
+              lambda do |entry, _path|
+                before_seen << entry.name
+                entry.name != "file2.txt"
+              end,
             after: ->(entry, path) { after_seen << [entry.name, path] },
           )
 
@@ -495,6 +511,32 @@ RSpec.describe MiniTarball::Reader do
       expect {
         described_class.use(io) { |reader| reader.extract_all("/nonexistent/path") }
       }.to raise_error(Errno::ENOENT)
+    end
+
+    it "rejects symlink targets that escape through a previously extracted symlink" do
+      io = StringIO.new(String.new, "w+b")
+      attrs = MiniTarball::EntryAttributes.with_file_defaults
+      symlink_type = MiniTarball::Header::TYPE[:symlink]
+
+      # `l -> .` then `m -> l/../secret`: lexically l/../secret stays inside
+      # the destination, but physically l/.. is the destination's parent
+      write_entry(
+        io,
+        MiniTarball::Header.new(name: "l", typeflag: symlink_type, linkname: ".", attrs:),
+        "",
+      )
+      write_entry(
+        io,
+        MiniTarball::Header.new(name: "m", typeflag: symlink_type, linkname: "l/../secret", attrs:),
+        "",
+      )
+      io.write("\0" * MiniTarball::Header::END_OF_ARCHIVE_SIZE)
+      io.rewind
+
+      expect { described_class.use(io) { |reader| reader.extract_all(tmpdir) } }.to raise_error(
+        MiniTarball::PathTraversalError,
+        /escapes destination/,
+      )
     end
   end
 

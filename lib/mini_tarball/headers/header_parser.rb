@@ -37,15 +37,17 @@ module MiniTarball
         end
 
         # Returns whether this is a GNU tar format header.
+        # The raw 6-byte magic field is "ustar " for GNU tar.
         # @return [Boolean]
         def gnu_format?
-          magic == "ustar " || magic == "ustar"
+          magic == "ustar "
         end
 
         # Returns whether this is a POSIX ustar format header.
+        # The raw 6-byte magic field is "ustar\0" for POSIX ustar.
         # @return [Boolean]
         def ustar_format?
-          magic&.start_with?("ustar\0") || magic == "ustar"
+          magic.start_with?("ustar\0")
         end
       end
 
@@ -193,9 +195,7 @@ module MiniTarball
         # First byte has 0x80 set to indicate base-256
         # Next bit (0x40) is the sign bit for two's complement
         first_byte = raw.getbyte(0)
-        if (first_byte & 0x40) != 0
-          raise InvalidHeaderError, "Negative base-256 not supported"
-        end
+        raise InvalidHeaderError, "Negative base-256 not supported" if (first_byte & 0x40) != 0
 
         value = first_byte & 0x7f
         raw.byteslice(1, raw.bytesize - 1).each_byte { |byte| value = (value << 8) | byte }

@@ -32,29 +32,41 @@ module MiniTarball
 
     # Validates a symlink target for extraction safety.
     #
+    # The target is resolved one component at a time, following symlinks that
+    # already exist on disk (created by earlier entries). A purely lexical
+    # check is not enough: with an extracted symlink +l -> .+, the target
+    # +l/../x+ resolves lexically to +x+ but physically to +../x+.
+    #
     # @param link_path [String] the symlink's location (already validated)
     # @param target [String] the symlink target from the archive
     # @param destination [String] the destination directory
     # @return [String] the target (unchanged)
-    # @raise [PathTraversalError] if following the symlink would escape destination
+    # @raise [PathTraversalError] if following the symlink would escape destination,
+    #   or if it passes through a symlink that cannot be resolved (dangling or looping)
     def self.validate_symlink_target!(link_path:, target:, destination:)
       dest_real = File.realpath(destination)
 
-      # Resolve where the symlink would point to
       if NameValidation.absolute_path?(target)
         # Absolute symlink targets are always rejected
         raise PathTraversalError, "Absolute symlink target not allowed: #{target}"
       end
 
-      # Calculate where the symlink points relative to its location
-      link_dir = File.dirname(link_path)
-      resolved_target = File.expand_path(target, link_dir)
+      current = File.expand_path(File.dirname(link_path))
+      ensure_within_destination!(current, dest_real, target:, link_path:)
 
-      unless resolved_target.start_with?(dest_real + File::SEPARATOR) ||
-               resolved_target == dest_real
-        raise PathTraversalError,
-              "Symlink target escapes destination: #{target} from #{link_path} -> #{resolved_target}"
-      end
+      target
+        .split("/")
+        .each do |component|
+          next if component.empty? || component == "."
+
+          current =
+            if component == ".."
+              File.dirname(current)
+            else
+              resolve_physical_path(File.join(current, component))
+            end
+          ensure_within_destination!(current, dest_real, target:, link_path:)
+        end
 
       target
     end
@@ -84,5 +96,24 @@ module MiniTarball
       end
     end
     private_class_method :ensure_no_symlink_components!
+
+    def self.ensure_within_destination!(path, dest_real, target:, link_path:)
+      return if path == dest_real || path.start_with?(dest_real + File::SEPARATOR)
+
+      raise PathTraversalError,
+            "Symlink target escapes destination: #{target} from #{link_path} -> #{path}"
+    end
+    private_class_method :ensure_within_destination!
+
+    # Resolves a path physically if it is an existing symlink.
+    # Dangling or looping symlinks cannot be verified, so they are rejected.
+    def self.resolve_physical_path(path)
+      return path unless File.symlink?(path)
+
+      File.realpath(path)
+    rescue Errno::ENOENT, Errno::ELOOP
+      raise PathTraversalError, "Symlink target cannot be resolved safely: #{path}"
+    end
+    private_class_method :resolve_physical_path
   end
 end

@@ -40,6 +40,18 @@ module MiniTarball
     DEFAULT_MAX_TOTAL_SIZE = 53_687_091_200 # 50GB total
     DEFAULT_MAX_ENTRY_COUNT = 100_000 # 100K entries
 
+    # Metadata entries (GNU long names, pax headers) are read fully into
+    # memory, so they get a much smaller cap than regular file entries.
+    MAX_METADATA_SIZE = 1_048_576 # 1MB
+
+    METADATA_TYPEFLAGS = [
+      Header::TYPE[:gnu_long_name],
+      Header::TYPE[:gnu_long_linkname],
+      Header::TYPE[:pax_global],
+      Header::TYPE[:pax_extended],
+    ].freeze
+    private_constant :METADATA_TYPEFLAGS
+
     # Opens a tar file and yields a reader.
     # The file is automatically closed when the block returns.
     #
@@ -106,39 +118,25 @@ module MiniTarball
       pending_pax_attributes = nil
 
       while (header = read_header)
-        case header.typeflag
-        when Header::TYPE[:gnu_long_name] # GNU long link (filename)
-          entry = Entry.from_header(header)
-          stream = create_content_stream(header.size)
-          check_limits!(entry)
-          pending_long_name = read_gnu_long_name(stream)
-          finalize_entry(stream, header.size)
-          next
-        when Header::TYPE[:gnu_long_linkname] # GNU long linkname
-          entry = Entry.from_header(header)
-          stream = create_content_stream(header.size)
-          check_limits!(entry)
-          pending_long_linkname = read_gnu_long_name(stream)
-          finalize_entry(stream, header.size)
-          next
-        when Header::TYPE[:pax_global]
-          entry = Entry.from_header(header)
-          stream = create_content_stream(header.size)
-          check_limits!(entry)
-          @pax_global_attributes = parse_pax_data(stream)
-          finalize_entry(stream, header.size)
-          next
-        when Header::TYPE[:pax_extended]
-          entry = Entry.from_header(header)
-          stream = create_content_stream(header.size)
-          check_limits!(entry)
-          pending_pax_attributes = parse_pax_data(stream)
-          finalize_entry(stream, header.size)
+        if METADATA_TYPEFLAGS.include?(header.typeflag)
+          data = read_metadata_entry(header)
+
+          case header.typeflag
+          when Header::TYPE[:gnu_long_name]
+            pending_long_name = parse_gnu_long_name(data)
+          when Header::TYPE[:gnu_long_linkname]
+            pending_long_linkname = parse_gnu_long_name(data)
+          when Header::TYPE[:pax_global]
+            @pax_global_attributes = PaxParser.parse(data)
+          when Header::TYPE[:pax_extended]
+            pending_pax_attributes = PaxParser.parse(data)
+          end
+
           next
         end
 
         pax_attributes = merged_pax_attributes(pending_pax_attributes)
-        entry = Entry.from_header(header, pax_attributes: pax_attributes)
+        entry = Entry.from_header(header, pax_attributes:)
 
         # Apply pending GNU long names if present (pax overrides take precedence).
         entry =
@@ -146,7 +144,7 @@ module MiniTarball
             entry,
             long_name: pending_long_name,
             long_linkname: pending_long_linkname,
-            pax_attributes: pax_attributes,
+            pax_attributes:,
           )
         pending_long_name = nil
         pending_long_linkname = nil
@@ -204,14 +202,7 @@ module MiniTarball
 
         next if before && before.call(entry, path) == false
 
-        extract_entry(
-          entry: entry,
-          stream: stream,
-          path: path,
-          destination: destination,
-          preserve_permissions: preserve_permissions,
-          preserve_mtime: preserve_mtime,
-        )
+        extract_entry(entry:, stream:, path:, destination:, preserve_permissions:, preserve_mtime:)
         extracted << path
         after&.call(entry, path)
       end
@@ -260,21 +251,29 @@ module MiniTarball
       BoundedReadStream.new(@io, size)
     end
 
-    def read_gnu_long_name(stream)
-      # GNU long name is null-terminated
-      name = stream.read
-      if name.nil? || name.empty?
-        raise InvalidHeaderError, "Empty GNU long name"
+    # Reads a metadata entry (GNU long name, pax header) fully into memory.
+    # These entries are bounded by MAX_METADATA_SIZE instead of max_file_size.
+    def read_metadata_entry(header)
+      entry = Entry.from_header(header)
+      check_limits!(entry)
+
+      if header.size > MAX_METADATA_SIZE
+        raise ArchiveLimitError,
+              "Metadata entry too large: #{header.size} bytes (max: #{MAX_METADATA_SIZE})"
       end
-      name.chomp!("\0")
-      name
+
+      stream = create_content_stream(header.size)
+      data = stream.read || ""
+      finalize_entry(stream, header.size)
+      data
     end
 
-    def parse_pax_data(stream)
-      # Lazy-load PaxParser when needed
-      require_relative "pax_parser" unless defined?(PaxParser)
-      data = stream.read
-      PaxParser.parse(data)
+    def parse_gnu_long_name(data)
+      raise InvalidHeaderError, "Empty GNU long name" if data.empty?
+
+      # GNU long name is null-terminated
+      data.chomp!("\0")
+      data
     end
 
     def merged_pax_attributes(entry_attributes)
@@ -351,14 +350,14 @@ module MiniTarball
       when entry.directory?
         extract_directory(path, entry, preserve_permissions:, preserve_mtime:)
       when entry.file?
-        extract_file(path: path, entry: entry, stream: stream, preserve_permissions:, preserve_mtime:)
+        extract_file(path:, entry:, stream:, preserve_permissions:, preserve_mtime:)
       when entry.symlink?
-        extract_symlink(path: path, entry: entry, destination: destination)
+        extract_symlink(path:, entry:, destination:)
       when entry.hardlink?
-        extract_hardlink(path: path, entry: entry, destination: destination)
+        extract_hardlink(path:, entry:, destination:)
       else
         # Unknown types are extracted as regular files (GNU tar behavior)
-        extract_file(path: path, entry: entry, stream: stream, preserve_permissions:, preserve_mtime:)
+        extract_file(path:, entry:, stream:, preserve_permissions:, preserve_mtime:)
       end
     end
 
@@ -384,7 +383,7 @@ module MiniTarball
       ExtractionValidator.validate_symlink_target!(
         link_path: path,
         target: entry.linkname,
-        destination: destination,
+        destination:,
       )
 
       # Ensure parent directory exists
@@ -436,19 +435,9 @@ module MiniTarball
     def skip_bytes!(length, context)
       return if length == 0
 
-      if @io.respond_to?(:seek) && @io.respond_to?(:size) && @io.respond_to?(:pos)
-        available = @io.size - @io.pos
-        if available < length
-          raise TruncatedArchiveError, "Unexpected end of archive while reading #{context}"
-        end
-        @io.seek(length, IO::SEEK_CUR)
-        return
-      end
-
-      data = @io.read(length)
-      if data.nil? || data.bytesize < length
-        raise TruncatedArchiveError, "Unexpected end of archive while reading #{context}"
-      end
+      BoundedReadStream.new(@io, length).skip
+    rescue TruncatedArchiveError
+      raise TruncatedArchiveError, "Unexpected end of archive while reading #{context}"
     end
   end
 end

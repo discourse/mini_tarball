@@ -140,8 +140,6 @@ module MiniTarball
         true
       end
 
-      private
-
       def self.parse_mtime(pax_mtime, header_mtime)
         if pax_mtime
           # Pax mtime can be a decimal (seconds with nanosecond precision)
@@ -156,5 +154,6 @@ module MiniTarball
           Time.at(header_mtime).utc
         end
       end
+      private_class_method :parse_mtime
     end
 end

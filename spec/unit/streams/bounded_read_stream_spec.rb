@@ -79,6 +79,48 @@ RSpec.describe MiniTarball::BoundedReadStream do
     it "respects the limit parameter" do
       expect(stream.gets("\n", 3)).to eq("lin")
     end
+
+    it "treats a sole Integer argument as the limit" do
+      expect(stream.gets(3)).to eq("lin")
+      expect(stream.gets(100)).to eq("e1\n")
+    end
+
+    it "reads lines longer than the internal chunk size" do
+      long_line = ("a" * 10_000) + "\n"
+      data = long_line + "tail"
+      stream = described_class.new(StringIO.new(data), data.bytesize)
+
+      expect(stream.gets).to eq(long_line)
+      expect(stream.read).to eq("tail")
+    end
+
+    it "finds a separator that straddles a chunk boundary" do
+      data = ("a" * 8191) + "--" + "b"
+      stream = described_class.new(StringIO.new(data), data.bytesize)
+
+      expect(stream.gets("--")).to eq(("a" * 8191) + "--")
+      expect(stream.gets("--")).to eq("b")
+    end
+
+    it "supports mixing gets and read" do
+      expect(stream.gets).to eq("line1\n")
+      expect(stream.read(2)).to eq("li")
+      expect(stream.gets).to eq("ne2\n")
+    end
+
+    it "supports skip after gets" do
+      stream.gets
+      stream.skip
+
+      expect(stream.eof?).to be true
+      expect(stream.bytes_read).to eq(multiline_data.bytesize)
+    end
+
+    it "raises TruncatedArchiveError when IO has less data than expected" do
+      stream = described_class.new(StringIO.new("no newline"), 100)
+
+      expect { stream.gets }.to raise_error(MiniTarball::TruncatedArchiveError)
+    end
   end
 
   describe "#each_byte" do

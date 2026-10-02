@@ -22,6 +22,7 @@ module MiniTarball
       @io = io
       @size = size
       @bytes_read = 0
+      @buffer = "".b
     end
 
     # Reads up to the specified number of bytes.
@@ -38,37 +39,33 @@ module MiniTarball
       max_read = @size - @bytes_read
       read_length = length ? [length, max_read].min : max_read
 
-      data = @io.read(read_length, buffer)
-
-      if data.nil? || data.bytesize < read_length
-        raise TruncatedArchiveError, "Unexpected end of archive at byte #{@bytes_read}"
-      end
-
+      data = @buffer.empty? ? read_from_io(read_length, buffer) : read_buffered(read_length, buffer)
       @bytes_read += data.bytesize
       data
     end
 
     # Reads a single line from the stream.
     #
-    # @param separator [String] the line separator (default: newline)
+    # Follows the IO#gets contract: a sole Integer argument is treated as the
+    # limit, with the default separator.
+    #
+    # @param separator [String, Integer] the line separator (default: newline),
+    #   or the limit when it is the only argument
     # @param limit [Integer, nil] maximum bytes to read
     # @return [String, nil] the line, or nil at end of entry
     def gets(separator = $/, limit = nil)
+      if separator.is_a?(Integer) && limit.nil?
+        limit = separator
+        separator = $/
+      end
+
       return nil if @bytes_read >= @size
 
-      line = +""
       max_to_read = @size - @bytes_read
       limit = max_to_read if limit.nil? || limit > max_to_read
 
-      while line.bytesize < limit
-        char = read(1)
-        break if char.nil?
-
-        line << char
-        break if separator && line.end_with?(separator)
-      end
-
-      line.empty? ? nil : line
+      line = read(line_length(separator, limit))
+      line.nil? || line.empty? ? nil : line
     end
 
     # Iterates over each byte in the stream.
@@ -103,6 +100,10 @@ module MiniTarball
     #
     # @return [void]
     def skip
+      # Bytes buffered by #gets were already consumed from the underlying IO
+      @bytes_read += @buffer.bytesize
+      @buffer.clear
+
       remaining_bytes = remaining
       return if remaining_bytes == 0
 
@@ -138,6 +139,66 @@ module MiniTarball
         copied += data.bytesize
       end
       copied
+    end
+
+    private
+
+    def read_from_io(length, buffer)
+      data = @io.read(length, buffer)
+
+      if data.nil? || data.bytesize < length
+        raise TruncatedArchiveError, "Unexpected end of archive at byte #{@bytes_read}"
+      end
+
+      data
+    end
+
+    # Serves a read from the internal buffer filled by #gets, falling back to
+    # the underlying IO for any missing bytes.
+    def read_buffered(length, buffer)
+      data = @buffer.byteslice(0, length)
+      @buffer = @buffer.byteslice(data.bytesize..) || "".b
+
+      missing = length - data.bytesize
+      data << read_from_io(missing, nil).force_encoding(Encoding::BINARY) if missing > 0
+
+      buffer ? buffer.replace(data) : data
+    end
+
+    # Fills the internal buffer until it contains the separator, at least
+    # +limit+ bytes, or the entry is exhausted, then returns the line length.
+    def line_length(separator, limit)
+      search_from = 0
+
+      loop do
+        if separator
+          index = @buffer.index(separator, search_from)
+          return [index + separator.bytesize, limit].min if index
+
+          # The separator can straddle a chunk boundary
+          search_from = [@buffer.bytesize - separator.bytesize + 1, 0].max
+        end
+
+        break if @buffer.bytesize >= limit || !fill_buffer
+      end
+
+      [limit, @buffer.bytesize].min
+    end
+
+    # Reads the next chunk from the underlying IO into the internal buffer.
+    # Returns false once the whole entry has been buffered.
+    def fill_buffer
+      buffered_end = @bytes_read + @buffer.bytesize
+      to_read = [DEFAULT_READ_SIZE, @size - buffered_end].min
+      return false if to_read <= 0
+
+      chunk = @io.read(to_read)
+      if chunk.nil? || chunk.bytesize < to_read
+        raise TruncatedArchiveError, "Unexpected end of archive at byte #{buffered_end}"
+      end
+
+      @buffer << chunk.force_encoding(Encoding::BINARY)
+      true
     end
   end
 end

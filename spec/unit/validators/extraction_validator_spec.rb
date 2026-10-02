@@ -55,20 +55,17 @@ RSpec.describe MiniTarball::ExtractionValidator do
     it "rejects existing symlink at final path by default" do
       File.symlink("target.txt", File.join(tmpdir, "link.txt"))
 
-      expect {
-        described_class.validate_extraction_path!("link.txt", tmpdir)
-      }.to raise_error(MiniTarball::PathTraversalError, /Symlink component/)
+      expect { described_class.validate_extraction_path!("link.txt", tmpdir) }.to raise_error(
+        MiniTarball::PathTraversalError,
+        /Symlink component/,
+      )
     end
 
     it "allows existing symlink at final path when configured" do
       File.symlink("target.txt", File.join(tmpdir, "link.txt"))
 
       result =
-        described_class.validate_extraction_path!(
-          "link.txt",
-          tmpdir,
-          allow_final_symlink: true,
-        )
+        described_class.validate_extraction_path!("link.txt", tmpdir, allow_final_symlink: true)
 
       expect(result).to eq(File.join(tmpdir, "link.txt"))
     end
@@ -82,7 +79,7 @@ RSpec.describe MiniTarball::ExtractionValidator do
     it "accepts relative targets within destination" do
       result =
         described_class.validate_symlink_target!(
-          link_path: link_path,
+          link_path:,
           target: "../file.txt",
           destination: tmpdir,
         )
@@ -92,7 +89,7 @@ RSpec.describe MiniTarball::ExtractionValidator do
     it "accepts targets in same directory" do
       result =
         described_class.validate_symlink_target!(
-          link_path: link_path,
+          link_path:,
           target: "target.txt",
           destination: tmpdir,
         )
@@ -102,7 +99,7 @@ RSpec.describe MiniTarball::ExtractionValidator do
     it "rejects absolute symlink targets" do
       expect {
         described_class.validate_symlink_target!(
-          link_path: link_path,
+          link_path:,
           target: "/etc/passwd",
           destination: tmpdir,
         )
@@ -112,7 +109,7 @@ RSpec.describe MiniTarball::ExtractionValidator do
     it "rejects Windows absolute symlink targets" do
       expect {
         described_class.validate_symlink_target!(
-          link_path: link_path,
+          link_path:,
           target: "C:\\Windows\\System32",
           destination: tmpdir,
         )
@@ -122,11 +119,51 @@ RSpec.describe MiniTarball::ExtractionValidator do
     it "rejects symlinks that escape destination" do
       expect {
         described_class.validate_symlink_target!(
-          link_path: link_path,
+          link_path:,
           target: "../../escape.txt",
           destination: tmpdir,
         )
       }.to raise_error(MiniTarball::PathTraversalError, /escapes destination/)
+    end
+
+    it "rejects targets that escape through an extracted symlink" do
+      # `self -> .` makes `self/..` physically resolve to tmpdir's parent,
+      # while a lexical check collapses `self/../secret` to tmpdir/secret
+      File.symlink(".", File.join(tmpdir, "self"))
+
+      expect {
+        described_class.validate_symlink_target!(
+          link_path: File.join(tmpdir, "link.txt"),
+          target: "self/../secret",
+          destination: tmpdir,
+        )
+      }.to raise_error(MiniTarball::PathTraversalError, /escapes destination/)
+    end
+
+    it "accepts targets through a symlink that stays inside the destination" do
+      FileUtils.mkdir_p(File.join(tmpdir, "data"))
+      File.symlink("data", File.join(tmpdir, "alias"))
+
+      result =
+        described_class.validate_symlink_target!(
+          link_path: File.join(tmpdir, "link.txt"),
+          target: "alias/file.txt",
+          destination: tmpdir,
+        )
+
+      expect(result).to eq("alias/file.txt")
+    end
+
+    it "rejects targets through a dangling symlink" do
+      File.symlink("missing", File.join(tmpdir, "dangling"))
+
+      expect {
+        described_class.validate_symlink_target!(
+          link_path: File.join(tmpdir, "link.txt"),
+          target: "dangling/file.txt",
+          destination: tmpdir,
+        )
+      }.to raise_error(MiniTarball::PathTraversalError, /cannot be resolved/)
     end
   end
 

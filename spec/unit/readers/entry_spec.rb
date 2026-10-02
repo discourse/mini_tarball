@@ -252,4 +252,10 @@ RSpec.describe MiniTarball::Entry do
       expect(entry.payload?).to be true
     end
   end
+
+  describe ".parse_mtime" do
+    it "is not part of the public API" do
+      expect { described_class.parse_mtime("123", 0) }.to raise_error(NoMethodError, /private/)
+    end
+  end
 end

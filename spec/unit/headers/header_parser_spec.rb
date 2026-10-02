@@ -169,6 +169,20 @@ RSpec.describe MiniTarball::HeaderParser do
       header = described_class.parse(data)
 
       expect(header.gnu_format?).to be true
+      expect(header.ustar_format?).to be false
+    end
+  end
+
+  describe "ParsedHeader#ustar_format?" do
+    it "returns true for POSIX ustar header" do
+      data = fixture("headers/small_file_header").dup
+      magic = MiniTarball::Headers::Layout::FIELD_MAP[:magic]
+      data[magic[:offset], magic[:length]] = "ustar\0"
+
+      header = described_class.parse(data, verify_checksum: false)
+
+      expect(header.ustar_format?).to be true
+      expect(header.gnu_format?).to be false
     end
   end
 end
