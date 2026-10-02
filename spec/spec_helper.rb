@@ -3,7 +3,7 @@
 require "simplecov" if ENV["COVERAGE"]
 require "mini_tarball"
 require "super_diff/rspec"
-require_relative "helper/super_diff/extension"
+require "super_diff/binary_string"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
