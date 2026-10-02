@@ -22,6 +22,11 @@ RSpec.describe MiniTarball::PlaceholderStream do
     expect(wrapped_io.string).to eq("\0" * 15 + "foo" + "\0" * 2)
   end
 
+  it "returns the number of bytes written" do
+    wrapped_io.seek(10)
+    expect(io.write("foo")).to eq(3)
+  end
+
   it "prevents writing when the content exceeds the range" do
     wrapped_io.seek(15)
     io.write("foo")
