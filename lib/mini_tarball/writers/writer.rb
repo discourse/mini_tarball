@@ -106,6 +106,11 @@ module MiniTarball
     #     stream.write(data)
     #   end
     #
+    # @example Reserve a fixed size, NUL-padding whatever the block leaves unwritten
+    #   w.file "data.bin", size: 4096, allow_short_writes: true do |stream|
+    #     stream.write(payload)
+    #   end
+    #
     # @param name [String] filename in the archive
     # @param from [String, nil] path to source file on disk
     # @param content [String, nil] string content to write
@@ -116,11 +121,15 @@ module MiniTarball
     # @param uname [String, nil] owner username
     # @param gname [String, nil] group name
     # @param mtime [Time, nil] modification time
+    # @param allow_short_writes [Boolean] NUL-pad instead of raising when a block
+    #   writes fewer bytes than the declared size (only valid with size: and a block)
     # @return [self]
     # @raise [UnsafeNameError] if name contains path traversal or absolute paths
     # @raise [NotSeekableError] if size is omitted and the IO doesn't support seeking
     # @raise [ArgumentError] if size is negative, content source is invalid, or size doesn't match content
     # @raise [WriteOutOfRangeError] if streamed content exceeds the declared size
+    # @raise [IncompleteWriteError] if streamed content is smaller than the declared size
+    #   and allow_short_writes is false
     # @raise [ValueTooLargeError] if numeric values exceed tar header limits
     def file(
       name,
@@ -133,12 +142,14 @@ module MiniTarball
       uname: nil,
       gname: nil,
       mtime: nil,
+      allow_short_writes: false,
       &block
     )
       ensure_not_closed!
       ensure_safe_name!(name)
       ensure_valid_size!(size) if size
       ensure_valid_source!(from, content, block)
+      ensure_valid_short_write_opt!(allow_short_writes, size, block)
 
       if from
         attribute_overrides = EntryAttributes.new(mode:, uid:, gid:, uname:, gname:, mtime:)
@@ -153,7 +164,7 @@ module MiniTarball
         ensure_matching_size!(expected: size, actual: content_size, label: "content")
         @content_writer.write_file(name, content_size, attrs) { |stream| stream.write(content) }
       elsif size
-        @content_writer.write_file(name, size, attrs, &block)
+        @content_writer.write_file(name, size, attrs, allow_short_writes:, &block)
       else
         ensure_seekable_io!
         write_file_seekable(name, attrs, &block)
@@ -248,7 +259,13 @@ module MiniTarball
       allow_parent_references: false
     )
       attrs = EntryAttributes.new(mode:, uid:, gid:, uname:, gname:, mtime:)
-      write_link(name:, target:, typeflag: Header::TYPE[:hardlink], attrs:, allow_parent_references:)
+      write_link(
+        name:,
+        target:,
+        typeflag: Header::TYPE[:hardlink],
+        attrs:,
+        allow_parent_references:,
+      )
     end
 
     # Reserves space for a file to be filled later.
@@ -379,6 +396,13 @@ module MiniTarball
 
     def ensure_valid_source!(from, content, block)
       SourceValidator.validate!(from, content, block)
+    end
+
+    def ensure_valid_short_write_opt!(allow_short_writes, size, block)
+      return unless allow_short_writes
+      return if size && block
+
+      raise ArgumentError, "allow_short_writes requires size: and a block"
     end
 
     def ensure_all_placeholders_filled!

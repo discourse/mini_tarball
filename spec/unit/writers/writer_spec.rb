@@ -228,17 +228,65 @@ RSpec.describe MiniTarball::Writer do
         expect(data).to have_tar_header_field(:size, content.bytesize)
       end
 
-      it "pads with NUL bytes when writing less than declared size" do
+      it "raises an error when writing less than declared size" do
+        MiniTarball::Writer.use(io) do |writer|
+          expect {
+            writer.file("test.txt", size: 100, **default_options) { |s| s.write("short") }
+          }.to raise_error(MiniTarball::IncompleteWriteError, /declared 100 bytes but only 5/)
+        end
+      end
+
+      it "pads with NUL bytes when writing less than declared size with allow_short_writes" do
         content = "short"
         declared_size = 100
 
         MiniTarball::Writer.use(io) do |writer|
-          writer.file("test.txt", size: declared_size, **default_options) { |s| s.write(content) }
+          writer.file(
+            "test.txt",
+            size: declared_size,
+            allow_short_writes: true,
+            **default_options,
+          ) { |s| s.write(content) }
         end
 
         file_content = io.string[512, declared_size]
         expect(file_content[0, content.length]).to eq(content)
         expect(file_content[content.length..]).to eq("\0" * (declared_size - content.length))
+      end
+
+      it "rejects allow_short_writes without a declared size" do
+        MiniTarball::Writer.use(io) do |writer|
+          expect {
+            writer.file("test.txt", allow_short_writes: true, **default_options) do |s|
+              s.write("x")
+            end
+          }.to raise_error(ArgumentError, /allow_short_writes requires size: and a block/)
+        end
+      end
+
+      it "rejects allow_short_writes with content:" do
+        MiniTarball::Writer.use(io) do |writer|
+          expect {
+            writer.file(
+              "test.txt",
+              content: "x",
+              size: 1,
+              allow_short_writes: true,
+              **default_options,
+            )
+          }.to raise_error(ArgumentError, /allow_short_writes requires size: and a block/)
+        end
+      end
+
+      it "keeps the archive block-aligned after an incomplete write" do
+        MiniTarball::Writer.use(io) do |writer|
+          expect {
+            writer.file("test.txt", size: 100, **default_options) { |s| s.write("short") }
+          }.to raise_error(MiniTarball::IncompleteWriteError)
+        end
+
+        # header + padded content + end-of-archive marker
+        expect(io.string.bytesize % 512).to eq(0)
       end
 
       it "raises error when writing more than declared size" do

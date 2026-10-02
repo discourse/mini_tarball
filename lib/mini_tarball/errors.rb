@@ -41,6 +41,10 @@ module MiniTarball
     end
   end
 
+  # Raised when a streamed entry writes fewer bytes than its declared size.
+  class IncompleteWriteError < Error
+  end
+
   # Raised when a numeric value is too large to encode in the tar header field.
   class ValueTooLargeError < Error
   end

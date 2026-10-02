@@ -34,5 +34,31 @@ RSpec.describe MiniTarball::ContentWriter do
       expect(io.string[512, 3]).to eq("abc")
       expect(io.string).to have_null_padding(at: 515, bytes: 509)
     end
+
+    it "raises IncompleteWriteError when the block writes less than the declared size" do
+      expect {
+        content_writer.write_file("test.txt", 10, attrs) { |stream| stream.write("abc") }
+      }.to raise_error(MiniTarball::IncompleteWriteError, /declared 10 bytes but only 3/)
+    end
+
+    it "pads short writes when allow_short_writes is set" do
+      content_writer.write_file("test.txt", 10, attrs, allow_short_writes: true) do |stream|
+        stream.write("abc")
+      end
+
+      expect(io.string[512, 10]).to eq("abc" + ("\0" * 7))
+    end
+
+    it "pads to the declared size when the block raises" do
+      expect {
+        content_writer.write_file("test.txt", 10, attrs) do |stream|
+          stream.write("abc")
+          raise "boom"
+        end
+      }.to raise_error("boom")
+
+      expect(io.string.bytesize).to eq(1024)
+      expect(io.string).to have_null_padding(at: 515, bytes: 509)
+    end
   end
 end
