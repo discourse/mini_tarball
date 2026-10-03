@@ -1,5 +1,123 @@
+exclude_paths:
+  - spec/
+
 detectors:
+  # --- Intentional API design ---
+
+  # Tar headers have many fields - long parameter lists are unavoidable
+  LongParameterList:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::Placeholder"
+      - "MiniTarball::Header#initialize"
+      - "MiniTarball::EntryAttributes"
+      - "MiniTarball::ContentWriter#write_file"
+      - "MiniTarball::ContentSource#self.open"
+
+  # Boolean params for security and padding options are intentional
+  BooleanParameter:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::PathValidator"
+      - "MiniTarball::ContentWriter#write_file"
+
+  # `x || default` is normal Ruby for optional params, and argument checks
+  # always depend on their arguments
+  ControlParameter:
+    exclude:
+      - "MiniTarball::EntryAttributes"
+      - "MiniTarball::ContentWriter#write_file"
+      - "MiniTarball::Writer#ensure_valid_short_write_opt!"
+
+  # The attribute params (mode, uid, gid, etc.) are tar header fields - repetition is intentional
+  DataClump:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::Placeholder"
+
+  # --- Duck typing and validation patterns ---
+
+  # Validating input for nil is required
+  NilCheck:
+    exclude:
+      - "MiniTarball::PathValidator"
+      - "MiniTarball::SourceValidator"
+      - "MiniTarball::PlaceholderManager#ensure_fits!"
+      - "MiniTarball::OwnerNameValidator#self.validate!"
+      - "MiniTarball::UserGroupLookup#self.storable_name"
+      - "MiniTarball::EntryAttributes#self.validate_number!"
+
+  # Duck typing via respond_to? is necessary for IO validation
+  ManualDispatch:
+    exclude:
+      - "MiniTarball::Writer#ensure_valid_io!"
+      - "MiniTarball::Writer#seekable?"
+      - "MiniTarball::Writer#append_mode?"
+      - "MiniTarball::SourceValidator#self.validate_path!"
+      - "MiniTarball::PlaceholderManager#find_reservation!"
+
+  # Guard clauses check properties of their argument
+  FeatureEnvy:
+    exclude:
+      - "MiniTarball::Writer#ensure_valid_io!"
+      - "MiniTarball::Writer#ensure_valid_size!"
+      - "MiniTarball::Writer#validated_name"
+      - "MiniTarball::Writer#write_file_entry"
+      - "MiniTarball::HeaderFields#encode_value"
+      - "MiniTarball::ContentWriter#ensure_declared_size_written!"
+      - "MiniTarball::PlaceholderManager#ensure_fits!"
+      - "MiniTarball::HeaderWriter#encode"
+
+  # --- Thin wrappers that don't need instance state ---
+  UtilityFunction:
+    exclude:
+      - "MiniTarball::Writer#seekable?"
+      - "MiniTarball::Writer#append_mode?"
+      - "MiniTarball::HeaderFields#encode_value"
+      - "MiniTarball::HeaderWriter#long_header_blocks"
+
+  # --- False positives for this codebase ---
+
+  # ensure_*! methods are guard clauses, not mutating operations
+  MissingSafeMethod:
+    exclude:
+      - "MiniTarball::Writer"
+      - "MiniTarball::ContentWriter"
+      - "MiniTarball::PlaceholderManager"
+
+  # Idiomatic resource management pattern (create/use with blocks)
+  NestedIterators:
+    exclude:
+      - "MiniTarball::Writer#self.create"
+      - "MiniTarball::ContentSource#self.open_file"
+
+  # Multiple calls to same getter at different points in time is intentional
+  DuplicateMethodCall:
+    exclude:
+      - "MiniTarball::EntryAttributes#self.from_stat"
+      - "MiniTarball::HeaderFormatter#self.to_base256"
+      - "MiniTarball::PlaceholderManager"
+      - "MiniTarball::Writer#write_file_seekable"
+      - "MiniTarball::HeaderFields#encode_value"
+
+  # base256 is the standard term from GNU tar documentation
+  UncommunicativeMethodName:
+    accept:
+      - /base256/
+
+  # Not requiring module documentation comments
   IrresponsibleModule:
     enabled: false
+
+  # --- Thresholds tuned for this codebase ---
+  TooManyStatements:
+    max_statements: 20
+
+  TooManyMethods:
+    max_methods: 25
+
   TooManyInstanceVariables:
-    max_instance_variables: 5
+    max_instance_variables: 8
+
+  TooManyConstants:
+    max_constants: 10

@@ -1,0 +1,85 @@
+# frozen_string_literal: true
+
+RSpec.describe MiniTarball::CappedWriteStream do
+  subject(:stream) { described_class.new(io, max_size:) }
+
+  let(:io) { StringIO.new.binmode }
+  let(:max_size) { 100 }
+
+  describe "#write" do
+    it "writes data to the underlying IO" do
+      stream.write("hello")
+      expect(io.string).to eq("hello")
+    end
+
+    it "tracks bytes written" do
+      stream.write("hello")
+      expect(stream.bytes_written).to eq(5)
+
+      stream.write("world")
+      expect(stream.bytes_written).to eq(10)
+    end
+
+    it "raises error when exceeding max size" do
+      expect { stream.write("a" * 101) }.to raise_error(MiniTarball::WriteOutOfRangeError)
+    end
+
+    it "raises error when cumulative writes exceed max size" do
+      stream.write("a" * 50)
+      stream.write("b" * 50)
+
+      expect { stream.write("c") }.to raise_error(MiniTarball::WriteOutOfRangeError)
+    end
+
+    it "allows writes up to exactly max size" do
+      expect { stream.write("a" * 100) }.not_to raise_error
+      expect(stream.bytes_written).to eq(100)
+    end
+  end
+
+  describe "#<<" do
+    it "writes data and returns self for chaining" do
+      result = stream << "hello"
+      expect(result).to eq(stream)
+      expect(io.string).to eq("hello")
+    end
+  end
+
+  describe "#remaining" do
+    it "returns remaining bytes that can be written" do
+      expect(stream.remaining).to eq(100)
+
+      stream.write("a" * 30)
+      expect(stream.remaining).to eq(70)
+    end
+  end
+
+  describe "#write details" do
+    it "counts the bytes of the data when the IO's write returns nil" do
+      allow(io).to receive(:write).and_wrap_original do |original, data|
+        original.call(data)
+        nil
+      end
+
+      expect(stream.write("abc")).to eq(3)
+      expect(stream.write(42)).to eq(2)
+      expect(stream.bytes_written).to eq(5)
+      expect(io.string).to eq("abc42")
+    end
+
+    it "returns the number of bytes of this write" do
+      stream.write("abc")
+
+      expect(stream.write("de")).to eq(2)
+    end
+
+    it "explains how much space was left" do
+      stream.write("a" * 90)
+
+      expect { stream.write("b" * 20) }.to raise_error(
+        MiniTarball::WriteOutOfRangeError,
+        "Write of 20 bytes exceeds limit (90/100 bytes used)",
+      )
+    end
+  end
+end

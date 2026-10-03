@@ -1,9 +1,16 @@
 # frozen_string_literal: true
 
-require "simplecov" if ENV["COVERAGE"]
+require "stringio"
+if ENV["COVERAGE"]
+  require "simplecov"
+  SimpleCov.start
+end
+
 require "mini_tarball"
 require "super_diff/rspec"
 require "super_diff/binary_string"
+require_relative "support/matchers/tar_header_matchers"
+require_relative "support/matchers/null_padding_matcher"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

@@ -4,13 +4,17 @@ source "https://rubygems.org"
 
 gemspec
 
-gem "rake", "~> 13"
+# mutant only runs in the MRI `mutation` CI jobs
+gem "mutant-rspec", install_if: -> { RUBY_ENGINE == "ruby" }
+gem "rake"
+gem "reek"
 gem "rspec"
+gem "rspec-path_matchers"
 gem "rubocop-discourse-base"
 gem "rubocop-rspec"
 gem "rubocop-rake"
 gem "rubycritic"
 gem "simplecov"
-# 0.19 ships the binary string diff support that used to live in spec/helper
+# binary string diffs need 0.19
 gem "super_diff", ">= 0.19"
 gem "syntax_tree"

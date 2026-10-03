@@ -1,0 +1,32 @@
+---
+usage: opensource
+requires:
+  - mini_tarball
+includes:
+  - lib
+integration:
+  name: rspec
+matcher:
+  subjects:
+    - MiniTarball*
+# Selects the tests that ran each subject, including integration specs.
+# Fails when coverage/coverage.json is missing, run `bundle exec rake mutant`.
+selection:
+  strategy: context_map
+mutation:
+  ignore_patterns:
+    # sum(0), sum(-1) and sum(167) all add the bytes without cutting off bits.
+    # The header spec checks a checksum above 16 bits, so plain sum() would fail.
+    - send{selector=sum}
+    # Any value of 0 or less means nothing was written yet, so 0 and -1 behave the same
+    - pair{name=sym{value=dirty_bytes} value=int}
+    # Kernel#open runs a command for names that start with "|" on Ruby 3.3 and
+    # 3.4. Ruby 4.0 removed that, so there both calls behave the same. The writer
+    # spec for such a name catches the change on older Rubies.
+    - send{receiver=const{name=File} selector=open}
+    # Writing CHUNK itself and writing a full-size slice of it give the same
+    # bytes. The check only avoids allocating a new string for every full chunk.
+    - if{condition=send{receiver=lvar{value=to_write}}}
+    # Without GNU extension blocks the main block is returned as it is. The
+    # result is the same either way, this only saves a copy per entry.
+    - if{condition=or{left=lvar{value=long_linkname}}}
