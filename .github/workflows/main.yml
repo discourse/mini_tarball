@@ -26,20 +26,87 @@ jobs:
       - name: Check Ruby formatting with Syntax Tree
         run: bundle exec stree check Gemfile Rakefile *.gemspec "lib/**/*.rb" "spec/**/*.rb"
 
-  test:
-    runs-on: ${{ matrix.os }}
-    name: Ruby ${{ matrix.ruby }} (${{ matrix.os }})
+      - name: Check code smells with Reek
+        run: bundle exec reek lib
+
+  verify-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      - run: tar --version | grep "GNU tar"
+      - run: bundle exec rake fixtures:verify
+
+  mutation:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          # `--since` walks git history; default shallow clone hides the base.
+          fetch-depth: 0
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      # The integration specs are part of the coverage recording
+      - name: Install bsdtar
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+      # mutant.yml selects a subject's tests from this recording.
+      - name: Record per-test coverage
+        run: COVERAGE=1 bundle exec rspec
+      # On PR: mutate subjects changed since main.
+      # On push to main: mutate subjects changed by this push.
+      - name: Run mutant
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            since="origin/main"
+          else
+            since="${{ github.event.before }}"
+            # A force-push leaves `github.event.before` pointing to an
+            # unreachable commit; fall back to the previous commit on main.
+            if ! git cat-file -e "${since}^{commit}" 2>/dev/null; then
+              echo "Base ${since} not reachable; falling back to HEAD^"
+              since="HEAD^"
+            fi
+          fi
+          bundle exec mutant run --since "${since}"
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    name: Unit tests - Ruby ${{ matrix.ruby }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'ubuntu-latest', 'macos-latest' ]
         # All non-EOL MRI versions plus the alternative implementations
-        ruby:
-          - '3.3'
-          - '3.4'
-          - '4.0'
-          - 'jruby'
-          - 'truffleruby'
+        ruby: ['3.3', '3.4', '4.0', 'jruby', 'truffleruby']
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: Run unit tests
+        run: bundle exec rake unit
+
+  integration-tests:
+    runs-on: ${{ matrix.os }}
+    name: Integration - ${{ matrix.os }} Ruby ${{ matrix.ruby }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['ubuntu-latest', 'macos-latest']
+        # All non-EOL MRI versions plus the alternative implementations
+        ruby: ['3.3', '3.4', '4.0', 'jruby', 'truffleruby']
         exclude:
           # Alternative implementations only run on Linux to keep CI times down
           - os: macos-latest
@@ -56,15 +123,39 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Setup MacOS
+      - name: Install bsdtar (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+      - name: Install GNU tar (macOS)
         run: brew install gnu-tar
         if: runner.os == 'macOS'
-      - name: Run tests
-        run: bundle exec rake spec
+      - name: Report tar versions
+        run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            tar --version
+            gtar --version
+            bsdtar --version
+          else
+            tar --version
+            bsdtar --version
+          fi
+      - name: Verify bsdtar available
+        run: bsdtar --version
+      - name: Verify GNU tar available
+        run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            gtar --version | grep "GNU tar"
+          else
+            tar --version | grep "GNU tar"
+          fi
+      - name: Run integration tests
+        run: bundle exec rake integration
+        env:
+          CI: true
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: test
+    needs: [lint, verify-fixtures, unit-tests, integration-tests, mutation]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

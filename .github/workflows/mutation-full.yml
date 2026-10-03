@@ -1,0 +1,38 @@
+name: Full mutation run
+
+on:
+  schedule:
+    # Mondays at 04:00 UTC.
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+# The `mutation` job in main.yml only mutates subjects that the diff touched,
+# so a commit that changes no Ruby mutates nothing. This job drops `--since`
+# and mutates every subject the matcher in `mutant.yml` selects.
+jobs:
+  mutation-full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      # The integration specs are part of the coverage recording
+      - name: Install bsdtar
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+      - name: Run mutant
+        run: bundle exec rake mutant
+      # The session file lists every surviving mutation with its diff,
+      # which is what you need to act on a failed run.
+      - name: Upload mutant session
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutant-session
+          path: .mutant/results/*.json
+          retention-days: 14

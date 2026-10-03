@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-return unless ENV['COVERAGE']
-
-SimpleCov.start do
-  add_filter "/spec/"
+SimpleCov.configure do
+  skip "/spec/"
+  # mutant selects tests from this recording, see mutant.yml
+  track_tests
 end

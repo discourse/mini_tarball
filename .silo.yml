@@ -1,0 +1,24 @@
+# silo project configuration
+# https://github.com/gschlager/silo#project-configuration
+
+image: fedora/44
+
+# Same Ruby versions as the CI matrix: all non-EOL MRI versions, JRuby and TruffleRuby
+use:
+  ruby:
+    versions: [3.3, 3.4, "4.0", jruby, truffleruby]
+    default: "4.0"
+
+# The integration specs extract archives with GNU tar and bsdtar. Without
+# bsdtar they skip it.
+setup:
+  - sudo dnf update -y
+  - sudo dnf install -y bsdtar
+  - bundle install
+
+sync:
+  - bundle install
+
+update:
+  - sudo dnf update -y
+  - rv self update
